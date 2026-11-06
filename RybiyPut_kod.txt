@@ -1,0 +1,2350 @@
+<title>Рыбий Путь</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap">
+<style>
+/* Layout: full-screen 3D canvas; HUD strip on top, floating joystick under the thumb, one ability button bottom-right, swap-fish button top-right. Single deliberate underwater look. */
+:root{
+  --deep:#06303f;
+  --ink:#eafcff;
+  --sun:#ffc94a;
+  --sun-dk:#b9831a;
+  --coral:#ff6b5a;
+  --glass:rgba(5,40,58,.72);
+  --edge:rgba(255,255,255,.22);
+  --f-display:'Lilita One','Trebuchet MS',system-ui,sans-serif;
+  --f-body:'Nunito',system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html{height:100%;background:var(--deep)}
+body{margin:0;height:100%;background:var(--deep);color:var(--ink);font-family:var(--f-body);font-weight:600;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.gutter{padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(14px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
+#hud{position:fixed;left:0;right:0;top:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
+.pill{background:var(--glass);border:1.5px solid var(--edge);border-radius:999px;padding:5px 13px;display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+#lvName{font-family:var(--f-display);font-size:16px;letter-spacing:.02em}
+#dist{font-family:var(--f-display);font-size:16px;color:var(--sun)}
+#hearts{font-size:18px;letter-spacing:3px;color:var(--coral);line-height:1}
+#wet{position:fixed;left:50%;bottom:max(18px,calc(env(safe-area-inset-bottom,0px) + 8px));transform:translateX(-50%);width:min(52vw,280px);pointer-events:none;opacity:0;transition:opacity .25s}
+#wet.on{opacity:1}
+#wet small{display:block;text-align:center;font-family:var(--f-display);font-size:13px;margin-bottom:4px;letter-spacing:.04em;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#wet div{height:12px;border-radius:99px;background:rgba(0,0,0,.4);border:1.5px solid var(--edge);overflow:hidden}
+#wet i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#41c8ff,#7df0ff);border-radius:99px}
+#wet.low i{background:linear-gradient(90deg,#ff5a4a,#ffb04a)}
+.round{position:fixed;border-radius:50%;border:3px solid rgba(255,255,255,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:0;font-family:var(--f-display);line-height:1;touch-action:none;box-shadow:0 6px 18px rgba(0,0,0,.35);color:#3a1a00}
+.round:active{transform:scale(.95)}
+.round svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#abil{right:max(16px,env(safe-area-inset-right,0px));bottom:max(22px,calc(env(safe-area-inset-bottom,0px) + 12px));width:96px;height:96px;font-size:14px;
+  background:conic-gradient(rgba(3,20,32,.6) var(--cd,0deg),transparent 0),radial-gradient(circle at 35% 30%,#ffe795,#ff9d3d)}
+#colors{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(126px,calc(env(safe-area-inset-bottom,0px) + 116px));display:grid;grid-template-columns:repeat(3,38px);gap:8px;z-index:6}
+#colors .sw{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.85);padding:0;cursor:pointer;touch-action:none;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+#colors .sw.on{border-color:#fff;outline:3px solid #222;transform:scale(1.15)}
+#swap{right:max(124px,calc(env(safe-area-inset-right,0px) + 108px));bottom:max(22px,calc(env(safe-area-inset-bottom,0px) + 12px));width:78px;height:78px;font-size:11px;background:radial-gradient(circle at 35% 30%,#b6f2ff,#2fa6d8)}
+#joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:3px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);pointer-events:none;opacity:0;transition:opacity .15s}
+#joy.on{opacity:1}
+#joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 3px 10px rgba(0,0,0,.3)}
+#toast{position:fixed;left:50%;top:calc(max(10px,env(safe-area-inset-top,0px)) + 52px);transform:translateX(-50%) translateY(-8px);background:var(--glass);border:1.5px solid var(--edge);border-radius:14px;padding:8px 16px;font-family:var(--f-display);font-size:17px;text-align:center;opacity:0;transition:opacity .25s,transform .25s;width:max-content;max-width:min(86vw,460px);pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;gap:14px;text-align:center;overflow:auto;
+  background:radial-gradient(ellipse at 50% 35%,rgba(8,70,96,.4),rgba(2,16,28,.82));backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.screen h1{font-family:var(--f-display);font-weight:400;font-size:clamp(46px,13vw,90px);line-height:.95;margin:0;color:var(--sun);text-shadow:0 4px 0 var(--coral),0 10px 24px rgba(0,0,0,.4);text-wrap:balance}
+.screen h2{font-family:var(--f-display);font-weight:400;font-size:clamp(28px,7vw,44px);margin:0;color:var(--sun);text-wrap:balance}
+.screen p{margin:0;max-width:36ch;font-size:16px;line-height:1.45;opacity:.95;text-wrap:pretty}
+.btn{font-family:var(--f-display);font-size:21px;background:var(--sun);color:#3a2300;border:0;border-radius:14px;padding:12px 30px;cursor:pointer;box-shadow:0 4px 0 var(--sun-dk);touch-action:manipulation}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--sun-dk)}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:none;border:2px solid var(--edge);font-size:17px;padding:9px 22px}
+.btn:focus-visible,.card:focus-visible,.round:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#grid,#pickGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:10px;width:100%;max-width:680px}
+.card{background:var(--glass);border:2px solid var(--edge);border-radius:16px;padding:8px 8px 12px;color:inherit;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0;touch-action:manipulation}
+.card canvas{width:100%;max-width:150px;height:auto;aspect-ratio:160/110;border-radius:10px}
+.card b{font-family:var(--f-display);font-weight:400;font-size:17px}
+.card span{font-size:12.5px;line-height:1.3;opacity:.88}
+.card.sel{border-color:var(--sun);box-shadow:0 0 0 4px rgba(255,201,74,.25)}
+.card.lock{opacity:.45;cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){#toast,#wet,#joy{transition:none}}
+#cut{position:fixed;inset:0;pointer-events:none;z-index:6}
+#cut:before,#cut:after{content:"";position:absolute;left:0;right:0;height:9vh;background:#000}
+#cut:before{top:0}#cut:after{bottom:0}
+#cutText{position:absolute;left:50%;bottom:calc(9vh + 14px);transform:translateX(-50%);width:max-content;max-width:min(88vw,600px);margin:0;background:rgba(0,0,0,.6);padding:10px 18px;border-radius:14px;font-family:var(--f-display);font-size:clamp(16px,4.2vw,23px);line-height:1.3;text-align:center;text-wrap:balance}
+#cutSkip{position:absolute;right:max(14px,env(safe-area-inset-right,0px));top:calc(9vh + 10px);pointer-events:auto;font-size:15px;padding:7px 16px;background:rgba(0,0,0,.45)}
+#cutFade{position:absolute;inset:0;background:#000;opacity:0}
+.screen>:first-child{margin-top:auto}.screen>:last-child{margin-bottom:auto}
+#pickGrid{max-width:760px}
+#grid h3{grid-column:1/-1;margin:14px 0 2px;font-family:var(--f-display);font-weight:400;font-size:28px;color:var(--sun);text-align:left;text-shadow:0 2px 0 var(--coral)}
+</style>
+
+<canvas id="gl"></canvas>
+<div id="hud" class="gutter" hidden>
+  <div class="pill"><span id="lvName"></span></div>
+  <div class="pill"><span id="dist"></span></div>
+  <div class="pill"><span id="hearts"></span></div>
+</div>
+<div id="wet"><small>Влажность</small><div><i id="wetBar"></i></div></div>
+<div id="joy"><i></i></div>
+<button id="abil" class="round" hidden aria-label="Умение рыбки"><svg id="abilSvg" viewBox="0 0 24 24"></svg><span id="abilName"></span></button>
+<div id="colors" hidden></div>
+<button id="swap" class="round" hidden aria-label="Сменить героя"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg><span id="swapName"></span></button>
+<div id="toast" role="status"></div>
+
+<section id="menu" class="screen gutter">
+  <h1>Рыбий<br>Путь</h1>
+  <p>Рыбки сидят в круглых аквариумах в здании посреди города. Каждой нужно выкатиться на улицу и за три уровня добраться до океана. Сначала золотая, потом летучая, надувная, пиранья, дельфин, рыба-капля, осьминог и электрический угорь. С высоты на твёрдое аквариум разбивается, на мягкое нет. На суше рыбки сохнут.</p>
+  <button id="playBtn" class="btn">Плыть</button>
+</section>
+
+<section id="select" class="screen gutter" hidden>
+  <h2>Выбери рыбку</h2>
+  <div id="grid"></div>
+  <p id="selHint"></p>
+  <button id="goBtn" class="btn">Плыть</button>
+</section>
+
+<div id="cut" hidden><div id="cutFade"></div><p id="cutText"></p><button id="cutSkip" class="btn ghost">Пропустить ▸</button></div>
+
+<section id="pick" class="screen gutter" hidden>
+  <h2>Стань другой рыбкой</h2>
+  <p>Кольцо каждые 5 метров. Выбери рыбку с нужной способностью.</p>
+  <div id="pickGrid"></div>
+  <button id="pickKeep" class="btn ghost">Остаться собой</button>
+</section>
+
+<section id="end" class="screen gutter" hidden>
+  <h2 id="endTitle"></h2>
+  <p id="endText"></p>
+  <div class="row">
+    <button id="endBtn" class="btn"></button>
+    <button id="endBtn2" class="btn ghost" hidden></button>
+  </div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const rnd = (a, b) => a + Math.random() * (b - a);
+function hash2(ix, iz) {
+  let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
+  return (h >>> 0) / 4294967295;
+}
+function vnoise(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z), u = smooth(x - ix), v = smooth(z - iz);
+  return lerp(lerp(hash2(ix, iz), hash2(ix + 1, iz), u), lerp(hash2(ix, iz + 1), hash2(ix + 1, iz + 1), u), v);
+}
+const fbm = (x, z) => vnoise(x, z) * 0.6 + vnoise(x * 2.1 + 7, z * 2.1 + 3) * 0.3 + vnoise(x * 4.3 + 1, z * 4.3 + 9) * 0.1;
+function angDiff(a, b) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
+
+/* ---------- renderer ---------- */
+let renderer = null;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, powerPreference: 'high-performance' });
+} catch (e) { renderer = null; }
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 700);
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (renderer) { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setSize(w, h, false); }
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- fish species ---------- */
+const ICONS = {
+  jump: '<path d="M5 19c3-1 4-8 7-12 3 4 4 11 7 12M12 7V3M9 5l3-3 3 3"/>',
+  bite: '<path d="M3 8h18M3 8l2.6 7 2.6-7 2.6 7 2.6-7 2.6 7 2.6-7"/>',
+  puff: '<circle cx="12" cy="12" r="5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  wing: '<path d="M3 18c5-1 8-5 9-12 1 7 4 11 9 12-5 1-9 0-9 0s-4 1-9 0z"/>',
+  leap: '<path d="M3 19c4-14 14-14 18 0M17 14l4 5-5 1"/>',
+  eye: '<path d="M2 12c4-6 16-6 20 0-4 6-16 6-20 0z"/><circle cx="12" cy="12" r="3"/>',
+  bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+  dash: '<path d="M3 8h8M2 12h10M4 16h8M13 6l8 6-8 6z"/>',
+  drop: '<path d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/>'
+};
+const SPEC = {
+  minnow: { name: 'Малёк', swim: 7, land: 3.2, dry: 4.5, ab: null, desc: 'Обычная рыбка. Недолго скачет по суше.', col: { back: 0x4f9de0, belly: 0xeaf6ff, fin: 0x2a6fc0, stripe: 0x2f6fb8 } },
+  gold: { name: 'Золотая рыбка', swim: 7.4, land: 3.2, dry: 4, ab: 'Прыжок', icon: 'jump', desc: 'Прыгает через сушу длинными прыжками.', col: { back: 0xffb21f, belly: 0xfff1b8, fin: 0xff8a1f } },
+  piranha: { name: 'Пиранья', swim: 7.8, land: 3.2, dry: 4.5, ab: 'Укус', icon: 'bite', desc: 'Прогрызает деревянные плотины.', col: { back: 0x5f7f8d, belly: 0xe7553f, fin: 0x3f5560 } },
+  puffer: { name: 'Рыба-шар', swim: 6, land: 2.2, dry: 3, dryInfl: 10, ab: 'Раздуться', icon: 'puff', desc: 'Катится по земле 10 секунд. Падений не боится.', col: { back: 0xc9a24a, belly: 0xfff6d8, fin: 0x9c6f1d, stripe: 0x8a5d14 } },
+  dolphin: { name: 'Дельфин', swim: 8.6, land: 2.4, dry: 4.5, ab: 'Мощный прыжок', icon: 'leap', desc: 'Прыгает до 5 метров. Зажми кнопку и прицелься: от 1 до 5 м, в любую сторону. Перелетает и плотины.', col: { back: 0x5f86a8, belly: 0xeaf2f7, fin: 0x46698a } },
+  blob: { name: 'Рыба-капля', swim: 5.8, land: 1.8, dry: 3.5, ab: 'Сопля', icon: 'drop', desc: 'Превращается в соплю: 8 секунд ползёт по суше и дышит. Птицы и охрана её не замечают.', col: { back: 0xe9a39a, belly: 0xf6cfc4, fin: 0xd98479 } },
+  octo: { name: 'Осьминог', swim: 7, land: 3, dry: 15, ab: 'Камуфляж', icon: 'eye', desc: 'Становится зелёным: птицы и охрана не замечают. Пролезает в узкие щели и 15 секунд дышит на суше.', col: { back: 0xc9503a, belly: 0xf0a48a, fin: 0xb0402e } },
+  eel: { name: 'Электрический угорь', swim: 8, land: 3.4, dry: 5.5, ab: 'Разряд', icon: 'bolt', desc: 'Бьёт током вокруг: охранники и птицы замирают на 6 секунд. Хорошо ползёт по суше.', col: { back: 0x2f6f8a, belly: 0xf2d34a, fin: 0xf2d34a } },
+  cham: { liz: true, name: 'Хамелеон', swim: 2.6, land: 4.4, dry: 9999, ab: 'Камуфляж', icon: 'eye', desc: 'Меняет цвет: птицы и охрана не замечают 10 секунд.', col: { back: 0x6fcf3a, belly: 0xd8f08a, fin: 0xff9a3c } },
+  snake: { liz: true, name: 'Змея', swim: 2.6, land: 4.4, dry: 9999, ab: 'Укус', icon: 'bite', desc: 'Прогрызает деревянные плотины.', col: { back: 0x8a6a2a, belly: 0xe8d9a0, fin: 0x3a2a10 } },
+  liz: { liz: true, name: 'Ящерица', swim: 2.6, land: 4.6, dry: 9999, ab: 'Рывок', icon: 'dash', desc: 'Быстрый рывок: можно проскочить мимо охраны и птиц.', col: { back: 0x5fa03a, belly: 0xcfe08a, fin: 0x3f7a28 } },
+  dragon: { liz: true, name: 'Летающая ящерка', swim: 2.6, land: 4.4, dry: 9999, ab: 'Взлёт', icon: 'wing', desc: 'Летит над землёй и плотинами 6 секунд.', col: { back: 0xd9503a, belly: 0xffd9a0, fin: 0xff9a3c } },
+  egorka: { liz: true, meme: true, yt: true, nlev: 5, as: 'blink', name: 'Егорка Геймер', swim: 2.6, land: 4.8, dry: 9999, ab: 'Телепорт', icon: 'bolt', desc: 'Блокчейн-геймер с джойстиком. Телепорт: прыжок вперёд на 9 метров сквозь опасность. Перезарядка 4 секунды.', col: { back: 0xd9342a, belly: 0xf2c9a0, fin: 0x6a3a1a } },
+  bayan: { liz: true, meme: true, yt: true, nlev: 5, as: 'story', name: 'Балагур Анекдотович (смешной)', swim: 2.6, land: 4.4, dry: 9999, ab: 'Байка', icon: 'drop', desc: 'Рассказывает охране, чайкам и осам смешную случайную историю: они слушают 16 секунд. Перезарядка 16 секунд.', col: { back: 0xe8a020, belly: 0xf2c9a0, fin: 0x6a2a8a } },
+  unbox: { liz: true, meme: true, yt: true, nlev: 5, as: 'cham', camoCol: 0xb8864a, name: 'Распаковщик Коробкин', swim: 2.6, land: 4.4, dry: 9999, ab: 'Коробка', icon: 'eye', desc: 'Прячется в картонной коробке: охрана и птицы не замечают 10 секунд.', col: { back: 0xc9a06a, belly: 0xf2c9a0, fin: 0x2f6fd0 } },
+  mc: { liz: true, meme: true, yt: true, nlev: 5, as: 'eel', name: 'MC Битбокс', swim: 2.6, land: 4.4, dry: 9999, ab: 'Бит', icon: 'bolt', desc: 'Басовый удар: охрана и птицы рядом замирают на 6 секунд.', col: { back: 0x7a3acf, belly: 0xf2c9a0, fin: 0xffd400 } },
+  candy: { liz: true, meme: true, yt: true, nlev: 5, as: 'liz', name: 'Сладкоежка Лолли', swim: 2.6, land: 4.6, dry: 9999, ab: 'Сахарный рывок', icon: 'dash', desc: 'Сладкий рывок: проскакивает мимо охраны и птиц.', col: { back: 0xff7ab8, belly: 0xf2c9a0, fin: 0xffffff } },
+  hamster: { liz: true, meme: true, as: 'bribe', name: 'Хомяк-дипломат', swim: 2.6, land: 4.6, dry: 9999, ab: 'Угощение', icon: 'drop', desc: 'Когда подходят охранник или чайка, угощает их вкусняшками: они жуют 6 секунд, а он проходит мимо. Перезарядка 5 секунд.', col: { back: 0xf0b060, belly: 0xfff0d8, fin: 0xd0402a } },
+  pickle: { liz: true, meme: true, as: 'liz', name: 'Огурец-философ', swim: 2.6, land: 4.6, dry: 9999, ab: 'Рывок', icon: 'dash', desc: 'Глубоко задумался и вдруг рванул вперёд: проскакивает мимо охраны.', col: { back: 0x5fb43a, belly: 0xcfe88a, fin: 0x2f7a22 } },
+  toast: { liz: true, meme: true, as: 'gold', name: 'Хлебушек', swim: 2.6, land: 4.4, dry: 9999, ab: 'Прыжок', icon: 'jump', desc: 'Выпрыгивает как из тостера: перепрыгивает плотины и преграды.', col: { back: 0xe0a95a, belly: 0xfbe3b0, fin: 0xffd84a } },
+  donut: { liz: true, meme: true, as: 'snake', name: 'Пончик-хрустик', swim: 2.6, land: 4.4, dry: 9999, ab: 'Хруст', icon: 'bite', desc: 'Хрустит и прогрызает деревянные плотины.', col: { back: 0xf07ab8, belly: 0xe8b46a, fin: 0xffffff } },
+  cloud: { liz: true, meme: true, as: 'cham', name: 'Облачко-грустняшка', swim: 2.6, land: 4.4, dry: 9999, ab: 'Невидимка', icon: 'eye', desc: 'Растворяется в воздухе: охрана и птицы его не видят.', col: { back: 0xf2f6ff, belly: 0xc6d4ea, fin: 0x7ab0ff } },
+  pelmen: { liz: true, meme: true, as: 'eel', name: 'Пельмень-искра', swim: 2.6, land: 4.4, dry: 9999, ab: 'Искра', icon: 'bolt', desc: 'Бьёт искрой: охрана и птицы рядом замирают на 6 секунд.', col: { back: 0xf3e2bf, belly: 0xfff5dc, fin: 0xffd400 } },
+  flyer: { name: 'Летучая рыба', swim: 7.2, land: 3, dry: 4, ab: 'Взлёт', icon: 'wing', desc: 'Летит над землёй и плотинами 6 секунд.', col: { back: 0x2f8fb5, belly: 0xe9fbff, fin: 0x8fd8ef } }
+};
+const FISH_ORDER = ['gold', 'flyer', 'puffer', 'piranha', 'dolphin', 'blob', 'octo', 'eel'];
+const LIZ_ORDER = ['cham', 'snake', 'liz', 'dragon'];
+const YT_ORDER = ['egorka', 'bayan', 'unbox', 'mc', 'candy'];
+const MEME_ORDER = ['hamster', 'pickle', 'toast', 'donut', 'cloud', 'pelmen'];
+
+/* ---------- fish model ---------- */
+const lamb = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
+function unitBody(back, belly, stripe) {
+  const g = new THREE.SphereGeometry(1, 28, 18);
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+  const cb = new THREE.Color(back), cl = new THREE.Color(belly), cs = stripe != null ? new THREE.Color(stripe) : null, tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    const t = smooth(clamp((y + 0.25) / 0.6, 0, 1));
+    tmp.copy(cl).lerp(cb, t);
+    if (cs && y > -0.05 && Math.sin(x * 10) > 0.45) tmp.lerp(cs, 0.55);
+    col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+function shapeMesh(shape, depth, material) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 10 });
+  g.translate(0, 0, -depth / 2);
+  return new THREE.Mesh(g, material);
+}
+function tailShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0.1, 0); s.quadraticCurveTo(-0.5, 0.15, -1.05, 0.8); s.quadraticCurveTo(-0.72, 0, -1.05, -0.8); s.quadraticCurveTo(-0.5, -0.15, 0.1, 0);
+  return s;
+}
+function dorsalShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0.55, 0); s.quadraticCurveTo(0.15, 0.6, -0.55, 0.75); s.quadraticCurveTo(-0.38, 0.25, -0.62, 0); s.closePath();
+  return s;
+}
+function pecShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0); s.quadraticCurveTo(-0.3, -0.38, -0.75, -0.5); s.quadraticCurveTo(-0.5, -0.1, 0, 0);
+  return s;
+}
+function wingShape(side) {
+  const s = new THREE.Shape(), k = side;
+  s.moveTo(0.55, 0); s.quadraticCurveTo(0.2, 1.1 * k, -0.35, 2.3 * k); s.quadraticCurveTo(-0.7, 1.4 * k, -1.2, 0.35 * k); s.quadraticCurveTo(-0.6, 0.1 * k, 0.55, 0);
+  return s;
+}
+
+function makeLizard(type) {
+  const C = SPEC[type].col, root = new THREE.Group(), inner = new THREE.Group(); root.add(inner);
+  const F = { root, inner, type, pecL: new THREE.Group(), pecR: new THREE.Group() }; inner.add(F.pecL, F.pecR);
+  const mats = [], M = c => { const m = lamb(c); mats.push({ m, c0: new THREE.Color(c) }); return m; };
+  const eyeW = lamb(0xffffff), eyeP = lamb(0x111111), add = (m, x, y, z, sx, sy, sz, p) => { m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz); (p || inner).add(m); return m; };
+  const sph = (r, mat) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat);
+  const eyes = (x, y, z, r) => { for (const s of [1, -1]) { const e = add(sph(r, eyeW), x, y, z * s); add(sph(r * 0.55, eyeP), r * 0.5, 0, 0, 0, 0, 0, e); } };
+  if (type === 'snake') {
+    const bm = M(C.back), bl = M(C.belly), segs = [];
+    for (let i = 0; i < 11; i++) { const r = i === 0 ? 0.46 : 0.42 - i * 0.025; const s = sph(r, i % 2 ? bl : bm); s.position.set(1.6 - i * 0.5, 0.1, 0); s.userData.i = i; s.scale.set(1.15, 0.85, 1); inner.add(s); segs.push(s); }
+    segs[0].scale.set(1.35, 0.8, 1.05); eyes(2.0, 0.35, 0.3, 0.14);
+    const tg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 5).rotateZ(Math.PI / 2), lamb(0xe03a3a)); add(tg, 2.35, 0.05, 0);
+    F.wag = v => { F.v = v; segs.forEach((s, i) => { s.position.z = v * Math.sin(i * 0.9) * 1.7 * (i * 0.12 + 0.2); }); };
+  } else {
+    const cham = type === 'cham', bm = M(C.back), bl = M(C.belly), fm = M(C.fin);
+    add(sph(1, bm), 0, 0.35, 0, 1.3, 0.5, 0.58); add(sph(1, bl), 0.1, 0.12, 0, 1.15, 0.3, 0.5);
+    add(sph(0.5, bm), 1.45, 0.5, 0, 1.25, 0.85, 0.9);
+    eyes(1.7, 0.78, 0.4, cham ? 0.3 : 0.2);
+    F.tailP = new THREE.Group(); F.tailP.position.set(-1.25, 0.3, 0); inner.add(F.tailP);
+    if (cham) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.13, 8, 20, Math.PI * 1.7), bm); t.position.set(-0.4, 0.2, 0); t.rotation.set(0, 0, -0.4); F.tailP.add(t); add(new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 4), fm), 1.25, 1.25, 0); }
+    else { const t = new THREE.Mesh(new THREE.ConeGeometry(0.34, 2.4, 8).rotateZ(Math.PI / 2), bm); t.position.set(-1.2, 0, 0); F.tailP.add(t); }
+    for (const [x, z] of [[0.7, 0.5], [0.7, -0.5], [-0.6, 0.5], [-0.6, -0.5]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.55, 6), fm); l.position.set(x, 0.0, z * 1.15); l.rotation.x = z > 0 ? 0.5 : -0.5; inner.add(l); }
+    for (let k = 0; k < 4; k++) add(sph(0.14, fm), -0.6 + k * 0.45, 0.8 - (k === 1 || k === 2 ? 0 : 0.08), 0);
+    F.wag = v => { F.tailP.rotation.y = v; };
+    if (type === 'dragon') {
+      F.wL = new THREE.Group(); F.wR = new THREE.Group(); F.wL.position.set(0.1, 0.65, 0.4); F.wR.position.set(0.1, 0.65, -0.4);
+      const wmat = lamb(0xff7a3a, { side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+      for (const [w, s] of [[F.wL, 1], [F.wR, -1]]) { const m = new THREE.Mesh(sph(1, wmat).geometry, wmat); m.scale.set(0.95, 0.05, 1.5); m.position.z = s * 1.45; w.add(m); inner.add(w); }
+      F.setSpread = (v, flap) => { const sc = 0.45 + 0.55 * v, fl = flap || 0; F.wL.scale.set(1, 1, sc); F.wR.scale.set(1, 1, sc); F.wL.rotation.x = (1 - v) * 0.8 - fl; F.wR.rotation.x = -(1 - v) * 0.8 + fl; };
+      F.setSpread(0);
+    }
+  }
+  F.camoCol = new THREE.Color(0x4caf50);
+  F.setCamo = v => { mats.forEach(o => o.m.color.copy(o.c0).lerp(F.camoCol, v * 0.92)); };
+  F.wag(0); inner.scale.setScalar(0.9);
+  return F;
+}
+function makeMeme(type) {
+  const C = SPEC[type].col, root = new THREE.Group(), inner = new THREE.Group(), body = new THREE.Group(); root.add(inner); inner.add(body);
+  const F = { root, inner, type, pecL: new THREE.Group(), pecR: new THREE.Group() }; inner.add(F.pecL, F.pecR);
+  const mats = [], M = c => { const m = lamb(c); mats.push({ m, c0: new THREE.Color(c) }); return m; };
+  const eyeW = lamb(0xffffff), eyeP = lamb(0x111111), add = (m, x, y, z, sx, sy, sz, p) => { m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz); (p || body).add(m); return m; };
+  const sph = (r, mat) => new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat);
+  const eyes = (x, y, z, r) => { for (const s of [1, -1]) { const e = add(sph(r, eyeW), x, y, z * s); add(sph(r * 0.55, eyeP), r * 0.55, 0, 0, 0, 0, 0, e); } };
+  const feet = (x, y, w, mat) => { for (const s of [1, -1]) add(sph(0.2, mat), x, y, w * s, 1.3, 0.7, 1); };
+  const bm = M(C.back), bl = M(C.belly), fm = M(C.fin), dark = lamb(0x2a1a10);
+  if (SPEC[type].yt) {
+    const skin = M(C.belly), sh = M(C.back), tr = M(C.fin), pants = lamb(0x2a3a5a);
+    if (type === 'unbox') {
+      add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.1, 1.5), sh), 0, 0.55, 0); add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.06, 0.5), lamb(0xe8d0a0)), 0, 1.12, 0);
+      add(sph(0.5, skin), 0.05, 1.55, 0); add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.6), tr), 0.05, 1.1, 0);
+      eyes(0.45, 1.6, 0.2, 0.15); add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.25), dark), 0.52, 1.35, 0); add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.2), M(0xe0a050)), 0.6, 0.6, 0.78);
+    } else {
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 1.0), sh), 0, 0.95, 0);
+      for (const s of [1, -1]) add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.6, 0.3), pants), 0, 0.3, 0.26 * s);
+      const head = type === 'egorka' ? new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skin) : sph(0.5, skin); add(head, 0.05, 1.85, 0);
+      eyes(0.42, 1.9, 0.2, 0.13); add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.3), M(0xc03030)), 0.46, 1.65, 0);
+      if (type === 'egorka') { add(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.9), tr), 0, 2.3, 0); add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.5), lamb(0x3a3a44)), 0.55, 0.95, 0); add(sph(0.06, lamb(0xff4040)), 0.62, 1.03, 0.12); }
+      if (type === 'bayan') { add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.2, 14), tr), 0, 2.3, 0); add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.7), dark), 0.46, 1.78, 0); add(sph(0.12, lamb(0xe05050)), 0.52, 1.88, 0); }
+      if (type === 'mc') { add(new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.07, 6, 18, Math.PI), tr).rotateY(0), 0, 2.15, 0).rotation.z = 0; for (const s of [1, -1]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.18, 10).rotateX(Math.PI / 2), tr), 0.05, 1.9, 0.55 * s); add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.7), dark), 0.46, 1.95, 0); add(sph(0.1, lamb(0x333333)), 0.6, 1.5, 0.12); }
+      if (type === 'candy') { const hat = add(new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 10), M(C.back)), 0.05, 2.55, 0); hat.rotation.z = 0.15; add(sph(0.12, lamb(0xffffff)), 0.2, 3.0, 0); add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5), lamb(0xffffff)), 0.55, 0.9, 0.62); add(sph(0.28, M(0xff4a9a)), 0.55, 1.45, 0.62); }
+    }
+    F.camoCol = new THREE.Color(0x4caf50); F.setCamo = v => { mats.forEach(o => o.m.color.copy(o.c0).lerp(F.camoCol, v * 0.5)); };
+    F.wag = v => { body.rotation.y = v * 0.25; body.rotation.z = Math.sin(v * 2) * 0.08; };
+    F.wag(0); inner.scale.setScalar(0.85);
+    return F;
+  }
+  if (type === 'hamster') {
+    add(sph(1, bm), 0, 0.95, 0, 1.15, 0.95, 0.95); add(sph(1, bl), 0.35, 0.8, 0, 0.9, 0.75, 0.8);
+    for (const s of [1, -1]) { add(sph(0.38, bl), 0.75, 0.85, 0.62 * s); add(sph(0.3, bm), 0.0, 1.95, 0.55 * s, 0.7, 0.8, 0.5); }
+    eyes(0.95, 1.35, 0.3, 0.2); add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.35), dark), 1.2, 1.0, 0);
+    const tie = add(new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 4), fm), 1.1, 0.55, 0); tie.rotation.z = Math.PI;
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.2), lamb(0x6a4a2a)), 0.9, 0.3, 0.85);
+    feet(0.3, 0.12, 0.45, bl);
+  } else if (type === 'pickle') {
+    add(sph(1, bm), 0, 0.85, 0, 1.55, 0.7, 0.7);
+    for (let k = 0; k < 9; k++) add(sph(0.1, bl), -1.1 + k * 0.28, 1.45 + (k % 2) * 0.03, (k % 3 - 1) * 0.28);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.3, 6), lamb(0x6a4a2a)), -1.5, 1.0, 0);
+    eyes(1.15, 1.1, 0.3, 0.26); add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.4), dark), 1.38, 1.4, 0.3).rotation.x = 0.35; add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.4), dark), 1.38, 1.4, -0.3).rotation.x = -0.35;
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.7), dark), 1.4, 0.7, 0);
+    feet(0.4, 0.2, 0.4, fm); feet(-0.6, 0.2, 0.4, fm);
+  } else if (type === 'toast') {
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.6, 1.4), bm), 0, 1.0, 0); add(sph(0.7, bm), 0, 1.85, 0.4, 0.5, 0.5, 0.9); add(sph(0.7, bm), 0, 1.85, -0.4, 0.5, 0.5, 0.9);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.35, 1.15), bl), 0.3, 0.98, 0);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.34), M(C.fin)), 0.42, 1.6, 0.1);
+    eyes(0.4, 1.15, 0.3, 0.2); add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.5), dark), 0.4, 0.7, 0);
+    feet(0, 0.18, 0.4, bm);
+  } else if (type === 'donut') {
+    add(new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.45, 12, 22).rotateY(Math.PI / 2), M(C.belly)), 0, 1.0, 0);
+    const ic = add(new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.46, 12, 22, Math.PI * 1.2).rotateY(Math.PI / 2), bm), 0, 1.04, 0); ic.rotation.x = 0.4;
+    const sp = [0xffffff, 0xffe14a, 0x4ac0ff, 0x6ae06a]; for (let k = 0; k < 8; k++) { const a = k * 0.7 + 0.3; add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.2), lamb(sp[k % 4])), 0.2 + (k % 3) * 0.12, 1.0 + Math.cos(a) * 0.95, Math.sin(a) * 0.95);}
+    eyes(0.5, 1.7, 0.3, 0.2); add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.5), dark), 0.55, 1.35, 0);
+    feet(0, 0.1, 0.45, M(C.belly));
+  } else if (type === 'cloud') {
+    for (const [x, y, z, r] of [[0, 1.1, 0, 0.8], [0.7, 1.0, 0.4, 0.55], [0.7, 1.0, -0.4, 0.55], [-0.7, 1.0, 0.4, 0.6], [-0.7, 1.0, -0.4, 0.6], [0, 1.6, 0, 0.55]]) add(sph(r, bm), x, y, z);
+    add(sph(0.9, bl), 0, 0.7, 0, 1.1, 0.4, 1.0);
+    eyes(0.75, 1.3, 0.28, 0.2); add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.4), dark), 0.95, 0.95, 0);
+    const dr = add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), fm), 0.9, 0.55, 0.5); dr.rotation.x = Math.PI;
+    feet(0, 0.2, 0.4, bl);
+  } else {
+    add(sph(1, bm), 0, 0.75, 0, 1.2, 0.8, 0.95);
+    add(new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 6, 20, Math.PI).rotateX(Math.PI / 2), bl), 0, 0.55, 0, 1.2, 1, 0.95);
+    const bolt = add(new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.8, 4), fm), 0, 1.7, 0); bolt.rotation.z = 0.3; add(new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 4), fm), 0.12, 1.4, 0).rotation.z = Math.PI + 0.3;
+    eyes(0.95, 0.95, 0.3, 0.22); add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.5), dark), 1.1, 0.5, 0);
+    feet(0.1, 0.1, 0.5, bl);
+  }
+  F.camoCol = new THREE.Color(0x4caf50);
+  F.setCamo = v => { mats.forEach(o => o.m.color.copy(o.c0).lerp(F.camoCol, v * 0.5)); };
+  F.wag = v => { body.rotation.y = v * 0.25; body.rotation.z = Math.sin(v * 2) * 0.08; };
+  F.wag(0); inner.scale.setScalar(0.9);
+  return F;
+}
+function makeFish(type) {
+  if (SPEC[type].meme) return makeMeme(type);
+  if (SPEC[type].liz) return makeLizard(type);
+  const S = SPEC[type], C = S.col;
+  const root = new THREE.Group(), inner = new THREE.Group(); root.add(inner);
+  let sx = 1.5, sy = 0.9, sz = 0.7;
+  if (type === 'piranha') { sx = 1.35; sy = 1.05; sz = 0.6; }
+  if (type === 'puffer') { sx = 1.25; sy = 0.9; sz = 0.8; }
+  if (type === 'flyer') { sx = 1.9; sy = 0.62; sz = 0.52; }
+  if (type === 'gold') { sx = 1.4; sy = 0.95; sz = 0.72; }
+  if (type === 'dolphin') { sx = 1.9; sy = 0.72; sz = 0.6; }
+  if (type === 'blob') { sx = 1.15; sy = 1.1; sz = 0.95; }
+  if (type === 'octo') { sx = 1.1; sy = 1.15; sz = 1.0; }
+  if (type === 'eel') { sx = 2.4; sy = 0.5; sz = 0.48; }
+  const F = { root, inner, type, bx: sx, by: sy, bz: sz, infl: 0, spread: 0 };
+  const body = new THREE.Mesh(unitBody(C.back, C.belly, C.stripe), new THREE.MeshLambertMaterial({ vertexColors: true }));
+  inner.add(body); F.body = body;
+  const trans = type === 'gold' || type === 'flyer';
+  const fm = new THREE.MeshLambertMaterial({ color: C.fin, side: THREE.DoubleSide, transparent: trans, opacity: type === 'gold' ? 0.88 : (type === 'flyer' ? 0.82 : 1) });
+  // tail
+  F.tailP = new THREE.Group(); inner.add(F.tailP);
+  const tail = shapeMesh(tailShape(), 0.05, fm);
+  const ts = type === 'gold' ? 1.5 : (type === 'puffer' ? 0.7 : 1);
+  tail.scale.set(ts, ts * (type === 'flyer' ? 1.25 : 1), 1);
+  if (type === 'dolphin') { tail.rotation.x = Math.PI / 2; tail.scale.set(1.1, 1.3, 1); }
+  F.tailP.add(tail); F.tail = tail;
+  F.wag = v => { F.tailP.rotation[type === 'dolphin' ? 'z' : 'y'] = v; };
+  // dorsal
+  if (type !== 'puffer') {
+    const d = shapeMesh(dorsalShape(), 0.04, fm); d.scale.setScalar(type === 'gold' ? 1.25 : (type === 'dolphin' ? 1.35 : 1));
+    F.dorsal = d; inner.add(d);
+  }
+  // pectoral fins
+  F.pecL = new THREE.Group(); F.pecR = new THREE.Group();
+  for (const [p, sgn] of [[F.pecL, 1], [F.pecR, -1]]) {
+    const m = shapeMesh(pecShape(), 0.03, fm); m.scale.setScalar(type === 'puffer' ? 0.7 : 1); p.add(m); p.userData.s = sgn; inner.add(p);
+  }
+  // eyes
+  const ew = lamb(0xffffff), ep = lamb(0x111111);
+  F.eyes = [];
+  for (const sgn of [1, -1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(type === 'puffer' ? 0.27 : 0.21, 14, 10), ew);
+    const pu = new THREE.Mesh(new THREE.SphereGeometry(type === 'puffer' ? 0.15 : 0.12, 10, 8), ep);
+    pu.position.set(0.1, 0, sgn * 0.06); e.add(pu); e.userData.s = sgn; inner.add(e); F.eyes.push(e);
+  }
+  // type extras
+  if (type === 'piranha') {
+    const jaw = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), lamb(0xc9402e));
+    jaw.scale.set(0.5, 0.2, 0.42); jaw.position.set(sx * 0.82, -sy * 0.42, 0); inner.add(jaw);
+    const tm = lamb(0xffffff);
+    for (let i = 0; i < 7; i++) {
+      const a = (i - 3) / 3;
+      const t = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 6), tm);
+      t.position.set(sx * 0.9 + 0.12 - Math.abs(a) * 0.1, -sy * 0.3, a * 0.3); inner.add(t);
+    }
+    for (const sgn of [1, -1]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.1), lamb(0x1a1a1a));
+      b.position.set(sx * 0.6, sy * 0.52, sgn * sz * 0.72); b.rotation.z = -0.5; inner.add(b);
+    }
+    // red lower fin accent
+    const ac = shapeMesh(dorsalShape(), 0.04, lamb(0xe7553f, { side: THREE.DoubleSide }));
+    ac.rotation.x = Math.PI; ac.scale.set(0.8, 0.6, 1); ac.position.set(0.2, -sy * 0.85, 0); inner.add(ac);
+  }
+  if (type === 'puffer') {
+    F.spikes = []; F.dirs = [];
+    const sm = lamb(0x8a5d14), n = 26;
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (i / (n - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+      const d = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r);
+      if (d.x > 0.7) continue;
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.5, 5), sm);
+      inner.add(sp); F.spikes.push(sp); F.dirs.push(d);
+    }
+    F.lips = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), lamb(0xe08a6a)); inner.add(F.lips);
+  }
+  if (type === 'flyer') {
+    const wm = new THREE.MeshLambertMaterial({ color: 0xbfeaff, side: THREE.DoubleSide, transparent: true, opacity: 0.78 });
+    F.wL = new THREE.Group(); F.wR = new THREE.Group();
+    for (const [w, sgn] of [[F.wL, 1], [F.wR, -1]]) {
+      const g = new THREE.ExtrudeGeometry(wingShape(sgn), { depth: 0.03, bevelEnabled: false, curveSegments: 10 });
+      g.rotateX(Math.PI / 2);
+      const m = new THREE.Mesh(g, wm); w.add(m); inner.add(w);
+    }
+  }
+  if (type === 'dolphin') {
+    const sn = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), lamb(0x7da0c0)); sn.scale.set(0.75, 0.22, 0.24); sn.position.set(sx * 0.95, -sy * 0.2, 0); inner.add(sn);
+    const sm = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.025, 6, 12, Math.PI), lamb(0x23394f)); sm.position.set(sx * 1.25, -sy * 0.27, 0); sm.rotation.set(0, Math.PI / 2, Math.PI); inner.add(sm);
+  }
+  if (type === 'blob') {
+    const nz = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), lamb(0xd98479)); nz.scale.set(0.42, 0.36, 0.4); nz.position.set(sx * 0.95, -sy * 0.12, 0); inner.add(nz);
+    const fr = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.03, 6, 12, Math.PI), lamb(0x6b3a36)); fr.position.set(sx * 1.0, -sy * 0.5, 0); fr.rotation.set(0, Math.PI / 2, 0); inner.add(fr);
+    const dr = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), lamb(0xcfe8ff)); dr.scale.set(0.8, 1.4, 0.8); dr.position.set(sx * 0.9, sy * 0.6, sz * 0.55); inner.add(dr);
+  }
+  if (type === 'gold') {
+    const gm = lamb(0xfff1b8, { transparent: true, opacity: 0.7 });
+    const cr = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), gm); cr.position.set(sx * 0.5, sy * 0.95, 0); cr.scale.set(1.4, 0.7, 1); inner.add(cr);
+  }
+  F.layout = () => {
+    const s = body.scale; F.bx = s.x; F.by = s.y; F.bz = s.z;
+    F.tailP.position.set(-s.x * 0.86, 0, 0);
+    if (F.dorsal) F.dorsal.position.set(-s.x * 0.05, s.y * 0.86, 0);
+    for (const e of F.eyes) e.position.set(s.x * 0.6, s.y * 0.3, e.userData.s * s.z * 0.7);
+    F.pecL.position.set(s.x * 0.25, -s.y * 0.3, s.z * 0.8); F.pecR.position.set(s.x * 0.25, -s.y * 0.3, -s.z * 0.8);
+    if (F.spikes) {
+      const k = lerp(0.25, 1, F.infl);
+      F.spikes.forEach((sp, i) => {
+        const d = F.dirs[i];
+        sp.position.set(d.x * s.x * 0.97, d.y * s.y * 0.97, d.z * s.z * 0.97);
+        sp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(d.x / s.x, d.y / s.y, d.z / s.z).normalize());
+        sp.scale.set(1, k, 1);
+      });
+      F.lips.position.set(s.x * 0.97, -s.y * 0.05, 0);
+    }
+    if (F.wL) { F.wL.position.set(s.x * 0.12, s.y * 0.3, s.z * 0.5); F.wR.position.set(s.x * 0.12, s.y * 0.3, -s.z * 0.5); }
+  };
+  F.setInfl = v => {
+    F.infl = v;
+    if (type === 'puffer') body.scale.set(lerp(sx, 1.5, v), lerp(sy, 1.5, v), lerp(sz, 1.5, v));
+    F.layout();
+  };
+  F.setSpread = (v, flap) => {
+    F.spread = v;
+    if (!F.wL) return;
+    const sc = 0.3 + 0.7 * v, fl = flap || 0;
+    F.wL.scale.set(1, 1, sc); F.wR.scale.set(1, 1, sc);
+    F.wL.rotation.x = (1 - v) * 0.9 - fl; F.wR.rotation.x = -(1 - v) * 0.9 + fl;
+  };
+  F.pecBase = () => { F.pecL.rotation.x = -0.9; F.pecR.rotation.x = 0.9; };
+  if (type === 'octo') {
+    F.dorsal.visible = false; tail.visible = false; F.pecL.visible = false; F.pecR.visible = false;
+    const gb = unitBody(0x4caf50, 0xa8e08a, null), cA = body.geometry.attributes.color, A = Float32Array.from(cA.array), Bc = gb.attributes.color.array;
+    F.tentMat = lamb(0xc9503a); const c0 = new THREE.Color(0xc9503a), c1 = new THREE.Color(0x4caf50);
+    F.tents = [];
+    for (let i = 0; i < 8; i++) {
+      const g = new THREE.Group(), m = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.16, 1.5, 8).rotateZ(Math.PI / 2).translate(-0.75, 0, 0), F.tentMat);
+      g.add(m); g.userData.base = (i - 3.5) * 0.24; g.userData.dz = -0.15 - (i % 2) * 0.1; g.position.set(-sx * 0.5, -sy * 0.42, (i - 3.5) * sz * 0.17); inner.add(g); F.tents.push(g);
+    }
+    F.setCamo = v => { const a = cA.array; for (let k = 0; k < a.length; k++) a[k] = A[k] + (Bc[k] - A[k]) * v; cA.needsUpdate = true; F.tentMat.color.copy(c0).lerp(c1, v); };
+    F.wag = v => { F.tents.forEach((g, i) => { g.rotation.y = g.userData.base * (1 + Math.abs(v) * 0.8) + v * (i % 2 ? 0.5 : -0.5); g.rotation.z = g.userData.dz + Math.abs(v) * 0.25; }); };
+    F.wag(0);
+  }
+  body.scale.set(sx, sy, sz);
+  F.setInfl(0); F.setSpread(0); F.pecBase();
+  return F;
+}
+/* ---------- biomes ---------- */
+const BIOMES = [
+  /* 0 city */ { skyTop: 0x5aa8ec, skyBot: 0xe6f3ff, fog: 0xd9ecfa, fogN: 45, fogF: 200, hemiS: 0xffffff, hemiG: 0x8d8f96, hemiI: 0.9, sunC: 0xfff3d0, sunI: 0.95, sunPos: [60, 70, 30], water: 0x4bb8d8, wOp: 0.66, sea: 0x2a9fb8,
+    baseH: 1.0, rough: 0.3, hill: 1.2, trees: 30, kind: 'tree', rocks: 0, reeds: 120, city: true,
+    pal: { ground: 0xa9abb1, ground2: 0x979aa1, shore: 0xcfc8b6, dirt: 0x80838a, rock: 0x70737a, rock2: 0x62656b, bedShallow: 0xbfd0d6, bedDeep: 0x4a7d8f } },
+  /* 1 forest river */ { skyTop: 0x6ab2d6, skyBot: 0xe6f1d2, fog: 0xc5dcc4, fogN: 35, fogF: 170, hemiS: 0xf4ffe8, hemiG: 0x3f6a3a, hemiI: 0.85, sunC: 0xfff0c0, sunI: 0.85, sunPos: [60, 55, -40], water: 0x2f9fa8, wOp: 0.7, sea: 0x2a8f98,
+    baseH: 1.1, rough: 1.0, hill: 5, trees: 240, kind: 'pine', rocks: 90, flowers: true, reeds: 260,
+    pal: { ground: 0x4f9a45, ground2: 0x2f7a3a, shore: 0x8a7a52, dirt: 0x6b5a3e, rock: 0x7f857a, rock2: 0x6b6f66, bedShallow: 0x8c917c, bedDeep: 0x36605a } },
+  /* 2 coast */ { skyTop: 0xf0786a, skyBot: 0xffe2a4, fog: 0xffd6a0, fogN: 50, fogF: 300, hemiS: 0xfff0dc, hemiG: 0xc99a62, hemiI: 0.85, sunC: 0xffd8a0, sunI: 1.0, sunPos: [320, 38, 10], water: 0x1e90d2, wOp: 0.68, sea: 0x1a86c8,
+    baseH: 0.9, rough: 0.9, hill: 5, trees: 26, kind: 'palm', rocks: 90, reeds: 260,
+    pal: { ground: 0xe8d49a, ground2: 0xd9bd7e, shore: 0xbfa56d, dirt: 0xcaa86a, rock: 0xb98557, rock2: 0x9d6f48, bedShallow: 0xd7c18a, bedDeep: 0x3d8fa6 } },
+  /* 3 canyon */ { skyTop: 0x5aa0d8, skyBot: 0xf3d9b0, fog: 0xe6cfae, fogN: 40, fogF: 200, hemiS: 0xfff0dc, hemiG: 0xa87a50, hemiI: 0.9, sunC: 0xffe2b0, sunI: 0.95, sunPos: [60, 60, -20], water: 0x3aa6b6, wOp: 0.68, sea: 0x2f8f9f,
+    baseH: 1.2, rough: 1.4, hill: 9, trees: 40, kind: 'pine', rocks: 260, rockScale: 3, reeds: 120,
+    pal: { ground: 0xc99a6a, ground2: 0xb5835a, shore: 0xdcc08a, dirt: 0x9a6a48, rock: 0x8a5a3c, rock2: 0x6e4630, bedShallow: 0xc4a878, bedDeep: 0x3f7f86 } },
+  /* 4 harbor */ { skyTop: 0x6fa2d0, skyBot: 0xf0e6d8, fog: 0xd6dde4, fogN: 45, fogF: 210, hemiS: 0xffffff, hemiG: 0x7a838c, hemiI: 0.9, sunC: 0xfff0d0, sunI: 0.95, sunPos: [60, 55, 40], water: 0x2f8fb8, wOp: 0.68, sea: 0x24789e,
+    baseH: 1.0, rough: 0.3, hill: 2, trees: 6, kind: 'tree', rocks: 40, reeds: 40, crates: 70,
+    pal: { ground: 0x8f969d, ground2: 0x7e858c, shore: 0xbfb59c, dirt: 0x6e7378, rock: 0x5f656b, rock2: 0x50555a, bedShallow: 0xa9b4b8, bedDeep: 0x35677a } },
+  /* 5 swamp */ { skyTop: 0x7aa18c, skyBot: 0xd4e2c8, fog: 0x9fb59a, fogN: 12, fogF: 85, hemiS: 0xdff3d0, hemiG: 0x36502e, hemiI: 0.8, sunC: 0xf0f0c0, sunI: 0.7, sunPos: [50, 40, 20], water: 0x56743a, wOp: 0.78, sea: 0x4a6a38,
+    baseH: 0.8, rough: 0.8, hill: 3, trees: 160, kind: 'tree', tc: [0.17, 0.25, 0.22, 0.32], rocks: 40, reeds: 700,
+    pal: { ground: 0x56703a, ground2: 0x445c30, shore: 0x6b6444, dirt: 0x4a3f2a, rock: 0x5e6858, rock2: 0x4e5648, bedShallow: 0x6a6a44, bedDeep: 0x2c3f2a } },
+  /* 6 jungle */ { skyTop: 0x4aa8c8, skyBot: 0xdff5d0, fog: 0xb8e0b8, fogN: 25, fogF: 130, hemiS: 0xf0ffe0, hemiG: 0x2f6f35, hemiI: 0.85, sunC: 0xfff2b0, sunI: 0.85, sunPos: [40, 70, -30], water: 0x2a9a80, wOp: 0.7, sea: 0x238a70,
+    baseH: 1.1, rough: 1.1, hill: 6, trees: 300, kind: 'tree', tc: [0.3, 0.38, 0.2, 0.34], rocks: 40, reeds: 400,
+    pal: { ground: 0x2f8f3a, ground2: 0x1f6f2a, shore: 0x8a7a50, dirt: 0x6a4a2a, rock: 0x6f7a68, rock2: 0x5a6552, bedShallow: 0x8a9a6a, bedDeep: 0x2a5a4a } },
+  /* 7 canals */ { skyTop: 0x6fb0e0, skyBot: 0xf4e8d8, fog: 0xe4e4e8, fogN: 45, fogF: 200, hemiS: 0xffffff, hemiG: 0x9a8f80, hemiI: 0.9, sunC: 0xffe9c0, sunI: 0.95, sunPos: [60, 60, 20], water: 0x3aa6a0, wOp: 0.7, sea: 0x2a8f88,
+    baseH: 1.0, rough: 0.25, hill: 1.2, trees: 40, kind: 'tree', rocks: 0, reeds: 60, city: true,
+    pal: { ground: 0xb9a58c, ground2: 0xa8957c, shore: 0xd8c8a8, dirt: 0x8a7a64, rock: 0x7a6e60, rock2: 0x6a5e50, bedShallow: 0xa8b8a8, bedDeep: 0x3f6f68 } }
+];
+BIOMES.push(/* 8 desert */ { skyTop: 0x4a9ad8, skyBot: 0xffe8b8, fog: 0xf0dcb0, fogN: 50, fogF: 230, hemiS: 0xfff3dc, hemiG: 0xb8905a, hemiI: 0.95, sunC: 0xffe6b0, sunI: 1.0, sunPos: [60, 70, 20], water: 0x2aa6b8, wOp: 0.7, sea: 0x1f8fa8,
+  baseH: 1.0, rough: 1.1, hill: 6, trees: 30, kind: 'palm', rocks: 200, rockScale: 2, reeds: 80,
+  pal: { ground: 0xe4c27a, ground2: 0xd2a85c, shore: 0xc9b07a, dirt: 0xb98a4a, rock: 0xa86a3c, rock2: 0x8a5230, bedShallow: 0xd7c18a, bedDeep: 0x3d8fa6 } });
+const KM = [[120, 70], [70, 20], [20, 0]];
+/* every fish has its own three settings */
+const THEMES = {
+  gold: [{ name: 'Город', bio: 0 }, { name: 'Лес и река', bio: 1 }, { name: 'Побережье', bio: 2 }],
+  flyer: [{ name: 'Город', bio: 0 }, { name: 'Каньон', bio: 3 }, { name: 'Порт', bio: 4 }],
+  puffer: [{ name: 'Город', bio: 0 }, { name: 'Болото', bio: 5 }, { name: 'Ночной клуб', bio: 2 }],
+  piranha: [{ name: 'Город', bio: 0 }, { name: 'Джунгли', bio: 6 }, { name: 'Рыбацкий причал', bio: 2 }],
+  dolphin: [{ name: 'Город', bio: 0 }, { name: 'Каналы', bio: 7 }, { name: 'Дельфинарий', bio: 2 }],
+  blob: [{ name: 'Город', bio: 0 }, { name: 'Канализация', bio: 5 }, { name: 'Океанариум', bio: 4 }],
+  octo: [{ name: 'Город', bio: 0 }, { name: 'Рыбный рынок', bio: 4 }, { name: 'Кофейня', bio: 2 }],
+  eel: [{ name: 'Город', bio: 0 }, { name: 'Старый завод', bio: 4 }, { name: 'Электростанция', bio: 3 }],
+  cham: [{ name: 'Город', bio: 0 }, { name: 'Музей', bio: 0 }, { name: 'Парк сафари', bio: 8 }],
+  snake: [{ name: 'Город', bio: 0 }, { name: 'Болото', bio: 5 }, { name: 'Пустыня', bio: 8 }],
+  liz: [{ name: 'Город', bio: 0 }, { name: 'Лес', bio: 1 }, { name: 'Старые руины', bio: 3 }],
+  dragon: [{ name: 'Город', bio: 0 }, { name: 'Каньон', bio: 3 }, { name: 'Вулканы', bio: 8 }],
+  egorka: [{ name: 'Город', bio: 0 }, { name: 'Школа', bio: 0 }, { name: 'Парк', bio: 1 }, { name: 'Стадион', bio: 2 }, { name: 'Студия игр', bio: 4 }],
+  bayan: [{ name: 'Город', bio: 0 }, { name: 'Рынок', bio: 2 }, { name: 'Деревня', bio: 1 }, { name: 'Цирк', bio: 3 }, { name: 'Сцена юмора', bio: 4 }],
+  unbox: [{ name: 'Город', bio: 0 }, { name: 'Почта', bio: 0 }, { name: 'Склад', bio: 4 }, { name: 'Торговый центр', bio: 2 }, { name: 'Фабрика коробок', bio: 3 }],
+  mc: [{ name: 'Город', bio: 0 }, { name: 'Студия звукозаписи', bio: 4 }, { name: 'Уличный фестиваль', bio: 1 }, { name: 'Метро', bio: 7 }, { name: 'Большая сцена', bio: 2 }],
+  candy: [{ name: 'Город', bio: 0 }, { name: 'Кондитерская', bio: 2 }, { name: 'Парк аттракционов', bio: 1 }, { name: 'Карамельный каньон', bio: 3 }, { name: 'Шоколадная фабрика', bio: 4 }],
+  hamster: [{ name: 'Город', bio: 0 }, { name: 'Рынок мемов', bio: 2 }, { name: 'Мемный офис', bio: 4 }],
+  pickle: [{ name: 'Город', bio: 0 }, { name: 'Парк мемов', bio: 1 }, { name: 'Радужный каньон', bio: 3 }],
+  toast: [{ name: 'Город', bio: 0 }, { name: 'Пляж мемов', bio: 2 }, { name: 'Пустыня вайба', bio: 8 }],
+  donut: [{ name: 'Город', bio: 0 }, { name: 'Болото шуток', bio: 5 }, { name: 'Конфетные вулканы', bio: 8 }],
+  cloud: [{ name: 'Город', bio: 0 }, { name: 'Лес мемов', bio: 6 }, { name: 'Облачные горы', bio: 3 }],
+  pelmen: [{ name: 'Город', bio: 0 }, { name: 'Каналы', bio: 7 }, { name: 'Мемная фабрика', bio: 4 }],
+  lfinal: [{ name: 'Большой террариум', bio: 8 }],
+  final: [{ name: 'Большой океанариум', bio: 4 }]
+};
+
+/* seg: ['p'|'g'|'o', length, opts]. Pools are water, gaps are dry land, 'o' is the ocean. */
+const OC = ['o', 240, { b: 80, d: 9, final: true }];
+const FIN = (b) => ['p', 30, { b: b || 8, final: true }];
+const CAMPAIGNS = {
+  gold: [
+    [['p', 17, { b: 7 }], ['g', 10], ['p', 19, { b: 8 }], ['g', 16], ['p', 17, { b: 6 }], ['g', 22], ['p', 20, { b: 7 }], ['g', 14], FIN()],
+    [['p', 24, { b: 6 }], ['g', 14], ['p', 18, { b: 7 }], ['g', 20, { heron: 1 }], ['p', 20, { b: 6 }], ['g', 26, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 18], FIN()],
+    [['p', 22, { b: 7 }], ['g', 18], ['p', 18, { b: 6 }], ['g', 24, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 30, { heron: 1 }], ['p', 18, { b: 6 }], ['g', 32, { heron: 1 }], OC]
+  ],
+  flyer: [
+    [['p', 17, { b: 7 }], ['g', 12], ['p', 19, { b: 8 }], ['g', 25], ['p', 17, { b: 6 }], ['g', 32], ['p', 20, { b: 7 }], ['g', 16], FIN()],
+    [['p', 30, { b: 6, wall: 0.8 }], ['g', 20], ['p', 20, { b: 7 }], ['g', 30, { heron: 1 }], ['p', 26, { b: 6, wall: 0.5 }], ['g', 40, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 26], FIN()],
+    [['p', 22, { b: 7 }], ['g', 24], ['p', 24, { b: 6, wall: 0.5 }], ['g', 36, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 50, { heron: 1 }], ['p', 20, { b: 6, wall: 0.6 }], ['g', 44, { heron: 1 }], OC]
+  ],
+  puffer: [
+    [['p', 17, { b: 7 }], ['g', 10], ['p', 19, { b: 8 }], ['g', 20], ['p', 17, { b: 6 }], ['g', 30], ['p', 20, { b: 7 }], ['g', 16], FIN()],
+    [['p', 26, { b: 6 }], ['g', 24, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 40, { heron: 1 }], ['p', 22, { b: 6 }], ['g', 30], ['p', 20, { b: 7 }], ['g', 50, { heron: 1 }], FIN()],
+    null
+  ],
+  piranha: [
+    [['p', 17, { b: 7 }], ['g', 9], ['p', 26, { b: 7, wall: 0.55 }], ['g', 11], ['p', 17, { b: 6 }], ['g', 10], ['p', 26, { b: 7, wall: 0.6 }], ['g', 11, { heron: 1 }], FIN()],
+    [['p', 30, { b: 6, wall: 0.8 }], ['g', 10], ['p', 26, { b: 7, wall: 0.5 }], ['g', 11, { heron: 1 }], ['p', 24, { b: 6, wall: 0.5 }], ['g', 11, { heron: 1 }], ['p', 28, { b: 7, wall: 0.6 }], ['g', 10], FIN()],
+    [['p', 26, { b: 7, walls: [0.3, 0.75] }], ['g', 11, { heron: 1 }], ['p', 30, { b: 6, walls: [0.35, 0.8] }], ['g', 10, { heron: 1 }], ['p', 26, { b: 7, wall: 0.5 }], ['g', 11, { heron: 1 }], ['p', 26, { b: 6, walls: [0.4, 0.8] }], ['g', 10], OC]
+  ],
+  eel: [
+    [['p', 17, { b: 7 }], ['g', 10], ['p', 19, { b: 8 }], ['g', 14], ['p', 17, { b: 6 }], ['g', 16], ['p', 20, { b: 7 }], ['g', 12], FIN()],
+    [['p', 26, { b: 6 }], ['g', 15, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 16, { guard: 1 }], ['p', 22, { b: 6 }], ['g', 15, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 16, { heron: 1 }], FIN()],
+    null
+  ],
+  cham: [
+    [['p', 17, { b: 7 }], ['g', 14], ['p', 19, { b: 8 }], ['g', 22], ['p', 17, { b: 6 }], ['g', 26], ['p', 20, { b: 7 }], ['g', 20], FIN()],
+    [['p', 22, { b: 6 }], ['g', 26, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 32, { heron: 1 }], ['p', 22, { b: 6 }], ['g', 30, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 36, { heron: 1 }], FIN()],
+    [['p', 22, { b: 7 }], ['g', 30, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 36, { guard: 1, heron: 1 }], ['p', 20, { b: 6 }], ['g', 40, { guard: 1 }], ['p', 18, { b: 7 }], ['g', 36, { heron: 1 }], OC]
+  ],
+  snake: [
+    [['p', 17, { b: 7 }], ['g', 12], ['p', 24, { b: 7, wall: 0.55 }], ['g', 14], ['p', 17, { b: 6 }], ['g', 14], ['p', 24, { b: 7, wall: 0.6 }], ['g', 14], FIN()],
+    [['p', 28, { b: 6, wall: 0.8 }], ['g', 16, { heron: 1 }], ['p', 26, { b: 7, wall: 0.5 }], ['g', 16], ['p', 24, { b: 6, walls: [0.35, 0.75] }], ['g', 16, { heron: 1 }], ['p', 26, { b: 7, wall: 0.5 }], ['g', 14], FIN()],
+    [['p', 26, { b: 7, walls: [0.3, 0.75] }], ['g', 16, { heron: 1 }], ['p', 30, { b: 6, walls: [0.35, 0.8] }], ['g', 14, { heron: 1 }], ['p', 26, { b: 7, wall: 0.5 }], ['g', 16, { heron: 1 }], ['p', 26, { b: 6, walls: [0.4, 0.8] }], ['g', 14], OC]
+  ],
+  liz: [
+    [['p', 17, { b: 7 }], ['g', 14], ['p', 19, { b: 8 }], ['g', 22], ['p', 17, { b: 6 }], ['g', 26], ['p', 20, { b: 7 }], ['g', 20], FIN()],
+    [['p', 22, { b: 6 }], ['g', 24, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 28, { heron: 1 }], ['p', 22, { b: 6 }], ['g', 30, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 32, { heron: 1 }], FIN()],
+    [['p', 22, { b: 7 }], ['g', 30, { guard: 1 }], ['p', 20, { b: 7 }], ['g', 34, { guard: 1 }], ['p', 20, { b: 6 }], ['g', 36, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 36, { guard: 1, heron: 1 }], OC]
+  ],
+  dragon: [
+    [['p', 17, { b: 7 }], ['g', 14], ['p', 19, { b: 8 }], ['g', 24], ['p', 17, { b: 6 }], ['g', 30], ['p', 20, { b: 7 }], ['g', 20], FIN()],
+    [['p', 28, { b: 6, wall: 0.8 }], ['g', 20, { heron: 1 }], ['p', 22, { b: 7 }], ['g', 30, { heron: 1 }], ['p', 26, { b: 6, wall: 0.5 }], ['g', 36, { heron: 1 }], ['p', 22, { b: 7 }], ['g', 28], FIN()],
+    [['p', 24, { b: 7, wall: 0.5 }], ['g', 28, { guard: 1 }], ['p', 22, { b: 6, wall: 0.5 }], ['g', 34, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 40, { heron: 1 }], ['p', 20, { b: 6, wall: 0.6 }], ['g', 36, { guard: 1 }], OC]
+  ],
+  octo: [
+    [['p', 17, { b: 7 }], ['g', 14], ['p', 19, { b: 8 }], ['g', 22, { slit: 1 }], ['p', 17, { b: 6 }], ['g', 28, { slit: 1 }], ['p', 20, { b: 7 }], ['g', 18, { slit: 1 }], FIN()],
+    [['p', 26, { b: 6 }], ['g', 22, { heron: 1, slit: 1 }], ['p', 20, { b: 7 }], ['g', 30, { heron: 1 }], ['p', 22, { b: 6 }], ['g', 26, { heron: 1, slit: 1 }], ['p', 20, { b: 7 }], ['g', 34, { heron: 1, slit: 1 }], FIN()],
+    null
+  ],
+  blob: [
+    [['p', 17, { b: 7 }], ['g', 12], ['p', 19, { b: 8 }], ['g', 20], ['p', 17, { b: 6 }], ['g', 26], ['p', 20, { b: 7 }], ['g', 16], FIN()],
+    [['p', 26, { b: 6 }], ['g', 18, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 24, { heron: 1 }], ['p', 22, { b: 6 }], ['g', 28, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 22, { heron: 1 }], FIN()],
+    null
+  ],
+  dolphin: [
+    [['p', 17, { b: 7 }], ['g', 14], ['p', 19, { b: 8 }], ['g', 26], ['p', 17, { b: 6 }], ['g', 38], ['p', 20, { b: 7 }], ['g', 22], FIN()],
+    [['p', 30, { b: 6, wall: 0.8 }], ['g', 20], ['p', 22, { b: 7 }], ['g', 34, { heron: 1 }], ['p', 26, { b: 6, wall: 0.3 }], ['g', 40, { heron: 1 }], ['p', 22, { b: 7 }], ['g', 28], FIN()],
+    null
+  ]
+};
+/* levels with their own interior (night club for the puffer, dolphin show hall) */
+const MUSEUM_COLS = [{ name: 'Красный', col: 0xe0473a }, { name: 'Жёлтый', col: 0xf2c230 }, { name: 'Зелёный', col: 0x4caf50 }, { name: 'Синий', col: 0x3a7bd5 }, { name: 'Фиолетовый', col: 0x9a55d8 }, { name: 'Серый', col: 0x9aa0a6 }];
+const MUSEUM_SEQ = [5, 2, 0, 3, 1, 4, 0, 2, 3, 1];
+const CUSTOM = {
+  cham1: [['z', 0, { zone: 'museum' }], ['p', 40, { b: 6 }], ['g', 40, { guard: 1 }], ['g', 40, { guide: 1, tour: 1 }], ['g', 40, { guard: 1, tour: 1 }], ['g', 40, { guide: 1, guard: 1 }], ['g', 40, { guard: 1, tour: 1 }], ['g', 40, { guide: 1, tour: 1 }], ['g', 40, { guard: 1 }], ['g', 40, { guide: 1, tour: 1 }], ['ze', 0]],
+  lfinal0: [['z', 0, { zone: 'terra' }], ['p', 30, {}], ['g', 30, { guard: 1 }], ['p', 30, { wall: 0.5 }], ['g', 30, { slit: 1, guard: 1 }], ['p', 30, { wall: 0.4 }], ['g', 30, { heron: 1 }], ['p', 30, { walls: [0.3, 0.7] }],
+    ['g', 30, { slit: 1 }], ['p', 30, { wall: 0.5 }], ['g', 30, { guard: 1 }], ['p', 30, {}], ['g', 30, { slit: 1, guard: 1 }], ['p', 30, { walls: [0.4, 0.8] }], ['g', 30, { heron: 1 }], ['p', 30, {}], ['g', 20, { guard: 1 }], ['ze', 0],
+    ['j', 80, { final: true }]],
+  eel2: [['z', 0, { zone: 'plant' }], ['p', 22, { b: 6 }], ['g', 15, { guard: 1 }], ['p', 20, { b: 6 }], ['g', 16, { guard: 1 }], ['p', 22, { b: 6 }], ['g', 15, { guard: 1 }], ['p', 18, { b: 6 }], ['g', 16, { guard: 1 }], ['p', 20, { b: 6 }], ['ze', 0],
+    ['g', 14], ['p', 22, { b: 7 }], ['g', 16, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 17, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 16, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 16, { guard: 1 }], OC],
+  final0: [['z', 0, { zone: 'bigaq' }], ['p', 24, { b: 6 }], ['g', 30, { guard: 1 }], ['p', 22, { b: 6, wall: 0.4 }], ['g', 24, { slit: 1, guard: 1 }], ['p', 22, { b: 6 }], ['g', 50, { guard: 1 }],
+    ['p', 20, { b: 6, wall: 0.5 }], ['g', 26, { slit: 1 }], ['p', 24, { b: 6 }], ['g', 44, { guard: 1, slit: 1 }], ['p', 22, { b: 6, walls: [0.3, 0.7] }], ['g', 36, { guard: 1 }],
+    ['p', 20, { b: 6 }], ['g', 22, { slit: 1 }], ['p', 20, { b: 6 }], ['g', 20, { guard: 1 }], ['ze', 0],
+    ['g', 14], ['p', 22, { b: 7 }], ['g', 36, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 40, { heron: 1, slit: 1 }], ['p', 18, { b: 7 }], ['g', 30, { heron: 1 }], OC],
+  octo2: [['z', 0, { zone: 'cafe' }], ['p', 22, { b: 6 }], ['g', 22, { guard: 1, slit: 1 }], ['p', 20, { b: 6 }], ['g', 26, { guard: 1, slit: 1 }], ['p', 22, { b: 6 }], ['g', 24, { guard: 1, slit: 1 }], ['p', 18, { b: 6 }], ['g', 20, { guard: 1 }], ['ze', 0],
+    ['g', 14], ['p', 22, { b: 7 }], ['g', 30, { heron: 1, slit: 1 }], ['p', 20, { b: 7 }], ['g', 30, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 30, { heron: 1, slit: 1 }], OC],
+  blob2: [['z', 0, { zone: 'aquarium' }], ['p', 22, { b: 6 }], ['g', 22, { guard: 1 }], ['p', 20, { b: 6 }], ['g', 26, { guard: 1 }], ['p', 22, { b: 6 }], ['g', 24, { guard: 1 }], ['p', 18, { b: 6 }], ['g', 20, { guard: 1 }], ['ze', 0],
+    ['g', 14], ['p', 22, { b: 7 }], ['g', 28, { heron: 1 }], ['p', 20, { b: 7 }], ['g', 28, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 28, { heron: 1 }], OC],
+  puffer2: [['z', 0, { zone: 'club' }], ['p', 20, { b: 6 }], ['g', 26, { guard: 1 }], ['p', 18, { b: 6 }], ['g', 34, { guard: 1 }], ['p', 16, { b: 6 }], ['g', 40, { guard: 1 }], ['p', 14, { b: 6 }], ['g', 30, { guard: 1 }], ['ze', 0],
+    ['g', 14], ['p', 22, { b: 7 }], ['g', 45, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 60, { heron: 1 }], ['p', 18, { b: 6 }], ['g', 70, { heron: 1 }], OC],
+  dolphin2: [['z', 0, { zone: 'arena' }], ['p', 22, { b: 6 }], ['g', 30, { guard: 1 }], ['p', 24, { b: 6, wall: 0.3 }], ['g', 38, { guard: 1 }], ['p', 22, { b: 6 }], ['g', 36, { guard: 1 }], ['p', 18, { b: 6 }], ['g', 18], ['ze', 0],
+    ['g', 14], ['p', 20, { b: 7 }], ['g', 46, { heron: 1 }], ['p', 20, { b: 7, wall: 0.3 }], ['g', 44, { heron: 1 }], ['p', 18, { b: 7 }], ['g', 40, { heron: 1 }], OC]
+};
+/* longer maps: more pool/gap pairs of the same kind, in front of the final water */
+function extend(segs, n) {
+  const body = segs.slice(0, -1), fin = segs[segs.length - 1];
+  const pools = body.filter(s => s[0] === 'p'), gaps = body.filter(s => s[0] === 'g'), out = body.slice();
+  for (let k = 0; k < n; k++) {
+    const pl = pools[(k * 2 + 1) % pools.length], gp = gaps[(k * 3 + 1) % gaps.length];
+    out.push(['p', pl[1], Object.assign({}, pl[2])]); out.push(['g', gp[1], Object.assign({}, gp[2] || {})]);
+  }
+  out.push(fin);
+  return out;
+}
+
+/* Starting buildings: the fish rolls in a round aquarium and drops from high furniture. Soft landings (mattress, sofa, rug) are safe. */
+const PL = (x0, x1, z0, z1, h, kind, soft, color, extra) => Object.assign({ x0, x1, z0, z1, h, kind, soft: !!soft, color }, extra || {});
+const BUILDINGS = {
+  gold: { name: 'Квартира', len: 82, wall: 0xe9d9b8, floor: 0xb98a54,
+    pl: [PL(0, 14, -14, 14, 7, 'shelf', 0, 0x7a5530), PL(14, 26, -14, -5, 2, 'mattress', 1, 0xcfe3ff), PL(14, 26, 5, 14, 3.2, 'table', 0, 0x8a5d33),
+      PL(30, 52, -14, 14, 5.5, 'ramp', 0, 0x9c6d3d, { ramp: true, h0: 0, h1: 5.5 }), PL(52, 62, -14, 14, 5.5, 'desk', 0, 0x6b4a2a), PL(62, 74, -5, 5, 1.8, 'sofa', 1, 0xe86a8a)],
+    rugs: [[62, 74, 5, 14, 0xd8467a], [34, 46, -6, 6, 0x3aa7a0]] },
+  flyer: { name: 'Офис', len: 88, wall: 0xd9e4ee, floor: 0x6f7782,
+    pl: [PL(0, 14, -14, 14, 8, 'cabinet', 0, 0x7e858f), PL(14, 28, -14, -5, 4, 'cabinet', 0, 0x8c929a), PL(14, 28, 4, 14, 1.5, 'beanbag', 1, 0xff9a3c),
+      PL(32, 56, -14, 14, 6.5, 'ramp', 0, 0x9aa1ab, { ramp: true, h0: 0, h1: 6.5 }), PL(56, 66, -14, 14, 6.5, 'desk', 0, 0x6e7680), PL(66, 78, -14, -4, 2, 'paper', 1, 0xffffff)],
+    rugs: [[66, 78, 5, 14, 0x3a7fd0], [36, 48, -5, 5, 0x5a9a6a]] },
+  puffer: { name: 'Магазин игрушек', len: 84, wall: 0xf6d6e4, floor: 0x8fb7d9,
+    pl: [PL(0, 14, -14, 14, 12, 'shelf', 0, 0x9a5fb0), PL(14, 28, -14, 0, 6, 'toybox', 0, 0xe05a5a), PL(14, 28, 4, 14, 3, 'toybox', 0, 0x4a9fe0),
+      PL(32, 58, -14, 14, 8, 'ramp', 0, 0xf2c14e, { ramp: true, h0: 0, h1: 8 }), PL(58, 68, -14, 14, 8, 'shelf', 0, 0x5aa86a)],
+    rugs: [[34, 48, -6, 6, 0xffd24a]] },
+  piranha: { name: 'Кухня', len: 86, wall: 0xf1f1ea, floor: 0xa7a39a,
+    pl: [PL(0, 13, -14, 14, 7.5, 'cabinet', 0, 0xcfd3d8), PL(13, 27, -4, 5, 2.5, 'sponge', 1, 0xffe45c), PL(13, 27, 5, 14, 3.5, 'counter', 0, 0x8e949c),
+      PL(31, 54, -14, 14, 6, 'ramp', 0, 0xb7a58a, { ramp: true, h0: 0, h1: 6 }), PL(54, 64, -14, 14, 6, 'table', 0, 0x8a5d33), PL(64, 76, -14, -5, 2.2, 'cushion', 1, 0xd9a066), PL(64, 76, 5, 14, 2.8, 'stove', 0, 0x3a3f46)],
+    rugs: [[36, 48, -6, 6, 0xb84a4a]] },
+  eel: { name: 'Мастерская', len: 84, wall: 0xdfe3e8, floor: 0x8e969e,
+    pl: [PL(0, 14, -14, 14, 8, 'cabinet', 0, 0x6e7680), PL(14, 28, -14, -4, 2.2, 'sponge', 1, 0xffe45c), PL(14, 28, 5, 14, 4, 'table', 0, 0x8c969a),
+      PL(32, 56, -14, 14, 6.5, 'ramp', 0, 0x9aa7ab, { ramp: true, h0: 0, h1: 6.5 }), PL(56, 66, -14, 14, 6.5, 'cabinet', 0, 0x6e7680), PL(66, 78, -14, -5, 2, 'beanbag', 1, 0xff9a3c), PL(66, 78, 5, 14, 3, 'table', 0, 0x8c969a)],
+    rugs: [[36, 48, -5, 5, 0x3a7fd0]] },
+  octo: { name: 'Зоомагазин', len: 84, wall: 0xf3e0b8, floor: 0xb89a6a,
+    pl: [PL(0, 14, -14, 14, 8, 'shelf', 0, 0x7a5530), PL(14, 28, -14, -4, 2.2, 'beanbag', 1, 0x7ac07a), PL(14, 28, 5, 14, 4, 'toybox', 0, 0x4a9fe0),
+      PL(32, 56, -14, 14, 6.5, 'ramp', 0, 0xc9a06a, { ramp: true, h0: 0, h1: 6.5 }), PL(56, 66, -14, 14, 6.5, 'shelf', 0, 0x7a5530), PL(66, 78, -14, -5, 2, 'cushion', 1, 0xd9a066), PL(66, 78, 5, 14, 3, 'toybox', 0, 0xe05a5a)],
+    rugs: [[36, 48, -5, 5, 0x6a4aa0]] },
+  blob: { name: 'Лаборатория', len: 84, wall: 0xe6f2ee, floor: 0xa9b8b6,
+    pl: [PL(0, 14, -14, 14, 8, 'cabinet', 0, 0xb8c4c8), PL(14, 28, -14, -4, 2.4, 'beanbag', 1, 0xff9a3c), PL(14, 28, 5, 14, 4, 'table', 0, 0x8c969a),
+      PL(32, 56, -14, 14, 6.5, 'ramp', 0, 0x9aa7ab, { ramp: true, h0: 0, h1: 6.5 }), PL(56, 66, -14, 14, 6.5, 'cabinet', 0, 0xb8c4c8), PL(66, 78, -14, -5, 2, 'sponge', 1, 0xffe45c), PL(66, 78, 5, 14, 3, 'table', 0, 0x8c969a)],
+    rugs: [[36, 48, -5, 5, 0x4aa0a0]] },
+  dolphin: { name: 'Музей', len: 86, wall: 0xe4dccb, floor: 0xb9b2a4,
+    pl: [PL(0, 14, -14, 14, 8, 'pedestal', 0, 0xd8d2c4), PL(14, 28, -14, -4, 2.2, 'cushion', 1, 0xc9485b), PL(14, 28, 5, 14, 4, 'pedestal', 0, 0xbab3a4),
+      PL(32, 56, -14, 14, 6.5, 'ramp', 0, 0xa59c8a, { ramp: true, h0: 0, h1: 6.5 }), PL(56, 66, -14, 14, 6.5, 'pedestal', 0, 0xd8d2c4), PL(66, 78, -5, 5, 2, 'sofa', 1, 0x4a78c2), PL(66, 78, 5, 14, 3, 'bench', 0, 0x6b4a2a)],
+    rugs: [[66, 78, -14, -5, 0xb03a48], [36, 48, -5, 5, 0x3a5aa0]] }
+};
+/* interior zones that sit inside the level (the pools in them are indoor pools) */
+const ZONES = {
+  club: { theme: 'club', wall: 0x1b1033, floor: 0x3b1d6e, ceiling: true, guardCol: 0x15151a, name: 'Ночной клуб',
+    pl: [PL(24, 27, -14, -9, 5, 'speaker', 0, 0x23232b), PL(24, 27, 9, 14, 5, 'speaker', 0, 0x23232b),
+      PL(52, 62, -14, -11, 3.4, 'bar', 0, 0x6a2a8a), PL(78, 81, -14, -9, 5, 'speaker', 0, 0x23232b), PL(78, 81, 9, 14, 5, 'speaker', 0, 0x23232b),
+      PL(96, 108, 10.5, 14, 3, 'stage', 0, 0x8a2a5a), PL(122, 132, -14, -6, 3.5, 'dj', 0, 0x2a2a46), PL(150, 153, -14, -9, 5, 'speaker', 0, 0x23232b), PL(150, 153, 9, 14, 5, 'speaker', 0, 0x23232b),
+      PL(176, 190, -14, -11, 3.4, 'bar', 0, 0x6a2a8a), PL(176, 190, 10.5, 14, 3, 'stage', 0, 0x8a2a5a)],
+    rugs: [] },
+  plant: { amp: 0, theme: 'plant', wall: 0x9aa7b4, floor: 0x6f7a84, ceiling: false, guardCol: 0xd9a020, name: 'Электростанция',
+    pl: [PL(24, 30, -14, -11, 2.4, 'cabinet', 0, 0x5a6670), PL(24, 30, 11, 14, 2.4, 'cabinet', 0, 0x5a6670), PL(70, 78, -14, -11, 3, 'cabinet', 0, 0x4a5660), PL(70, 78, 11, 14, 3, 'cabinet', 0, 0x4a5660),
+      PL(118, 124, -14, -11, 2.4, 'cabinet', 0, 0x5a6670), PL(118, 124, 11, 14, 2.4, 'cabinet', 0, 0x5a6670)],
+    rugs: [] },
+  cafe: { amp: 0, theme: 'cafe', wall: 0xe8d3b0, floor: 0xb88a5a, ceiling: false, guardCol: 0x5a3a24, name: 'Кофейня', doorW: 1.0,
+    pl: [PL(24, 30, -14, -11, 2.4, 'table', 0, 0x8a5d33), PL(24, 30, 11, 14, 2.4, 'table', 0, 0x8a5d33), PL(70, 78, -14, -11, 3, 'counter', 0, 0x5a3a24), PL(70, 78, 11, 14, 3, 'counter', 0, 0x5a3a24),
+      PL(118, 124, -14, -11, 2.4, 'table', 0, 0x8a5d33), PL(118, 124, 11, 14, 2.4, 'table', 0, 0x8a5d33), PL(150, 158, -14, -11, 3, 'counter', 0, 0x5a3a24), PL(150, 158, 11, 14, 3, 'counter', 0, 0x5a3a24)],
+    rugs: [] },
+  aquarium: { theme: 'aquarium', wall: 0x2a7fb0, floor: 0x9fc4d6, ceiling: false, guardCol: 0x1f3f6a, name: 'Океанариум',
+    pl: [PL(24, 30, -14, -11, 1.4, 'bench', 0, 0x8a5d33), PL(24, 30, 11, 14, 1.4, 'bench', 0, 0x8a5d33), PL(70, 76, -14, -11, 2.4, 'kiosk', 0, 0xffd24a), PL(70, 76, 11, 14, 2.4, 'kiosk', 0, 0xff7a5a),
+      PL(118, 124, -14, -11, 1.4, 'bench', 0, 0x8a5d33), PL(118, 124, 11, 14, 1.4, 'bench', 0, 0x8a5d33), PL(158, 164, -14, -11, 2.4, 'kiosk', 0, 0xffd24a), PL(158, 164, 11, 14, 2.4, 'kiosk', 0, 0xff7a5a)],
+    rugs: [] },
+  museum: { amp: 0, theme: 'museum', wall: 0xe9e2d2, floor: 0xc9c2b2, ceiling: false, guardCol: 0x1f2a4a, name: 'Музей', doorW: 1.3, exit: true,
+    pl: (() => { const a = []; for (let x = 12, k = 0; x < 380; x += 40, k++) a.push(PL(x, x + 5, -14, -11, 1.6, 'cabinet', 0, 0x6a5a48), PL(x + 18, x + 23, 11, 14, 1.6, 'cabinet', 0, 0x6a5a48)); return a; })(),
+    rugs: [] },
+  terra: { amp: 0, theme: 'terra', wall: 0xbfe0cc, floor: 0xd9c48a, ceiling: false, guardCol: 0x1f6a4a, name: 'Большой террариум',
+    pl: (() => { const a = []; for (let x = 20, k = 0; x < 560; x += 60, k++) a.push(PL(x, x + 6, -14, -11, k % 2 ? 1.4 : 2.4, 'log', 0, 0x6a4a2a), PL(x + 24, x + 30, 11, 14, k % 2 ? 2.4 : 1.4, 'rock', 0, 0x8a8f86)); return a; })(),
+    rugs: [] },
+  arena: { amp: 0, theme: 'arena', wall: 0xcfe6f5, floor: 0xb8c7d4, ceiling: false, guardCol: 0x2a6fd0, name: 'Дельфинарий',
+    pl: [PL(8, 200, -14, -11, 3, 'stand', 0, 0xe8e8ee), PL(8, 200, -11, -9.9, 1.5, 'stand', 0, 0xd8d8e2), PL(8, 200, 11, 14, 3, 'stand', 0, 0xe8e8ee), PL(8, 200, 9.9, 11, 1.5, 'stand', 0, 0xd8d8e2)],
+    rugs: [] }
+};
+ZONES.bigaq = Object.assign({}, ZONES.aquarium, { name: 'Большой океанариум', pl: (() => { const a = []; for (let x = 24, k = 0; x < 560; x += 46, k++) a.push(PL(x, x + 6, -14, -11, k % 2 ? 2.4 : 1.4, k % 2 ? 'kiosk' : 'bench', 0, k % 2 ? 0xffd24a : 0x8a5d33), PL(x, x + 6, 11, 14, k % 2 ? 1.4 : 2.4, k % 2 ? 'bench' : 'kiosk', 0, k % 2 ? 0x8a5d33 : 0xff7a5a)); return a; })() });
+function levelDef(type, i) {
+  const th = THEMES[type][i], key = type + i;
+  const segs = CUSTOM[key] ? CUSTOM[key].map(s => s.slice()) : extend(CAMPAIGNS[type][i], [3, 4, 3, 4, 3][i]).map(s => s.slice());
+  const bd = (i === 0 && BUILDINGS[type]) ? BUILDINGS[type] : null;
+  if (bd) segs.unshift(['b', bd.len], ['g', 26]);
+  const lz = (SPEC[type] && SPEC[type].liz) || type === 'lfinal';
+  return { yt: !!(SPEC[type] && SPEC[type].yt), meme: !!(SPEC[type] && SPEC[type].meme), name: th.name, bio: th.bio, lvl: i, km: (type === 'final' || type === 'lfinal') ? [30, 0] : KM[i % 3], segs, bldDef: bd, stations: type === 'final' || type === 'lfinal', collect: type === 'lfinal', noWater: lz };
+}
+/* lizards do not swim to the ocean: every level ends in the jungle, their natural habitat */
+for (const t of ['cham', 'snake', 'liz', 'dragon']) CAMPAIGNS[t].forEach((lv, i) => { lv[lv.length - 1] = ['j', i === 2 ? 80 : 44, { final: true }]; });
+const YT_SRC = [['liz', 0], ['cham', 1], ['liz', 1], ['cham', 2], ['liz', 2]];
+YT_ORDER.forEach((t, k) => { CAMPAIGNS[t] = YT_SRC.map(([s, j], i) => { const lv = CAMPAIGNS[s][(j + k) % 3 === j ? j : j].map(q => q.slice()); lv[lv.length - 1] = ['j', i === 4 ? 80 : 44, { final: true }]; return lv; }); });
+for (const [t, src] of [['hamster', 'cham'], ['pickle', 'liz'], ['toast', 'snake'], ['donut', 'dragon'], ['cloud', 'cham'], ['pelmen', 'liz']]) CAMPAIGNS[t] = CAMPAIGNS[src].map(lv => lv.map(s => s.slice()));
+BUILDINGS.cham = Object.assign({}, BUILDINGS.octo, { name: 'Террариум' });
+BUILDINGS.snake = Object.assign({}, BUILDINGS.gold, { name: 'Зоомагазин' });
+BUILDINGS.liz = Object.assign({}, BUILDINGS.piranha, { name: 'Школьный класс' });
+BUILDINGS.dragon = Object.assign({}, BUILDINGS.flyer, { name: 'Библиотека' });
+let LVL = null, LI = 0, CUR = 'gold';
+
+function buildSpec(def) {
+  const B = BIOMES[def.bio];
+  const L = Object.assign({}, def, { baseH: B.baseH, rough: B.rough, hill: B.hill });
+  L.noWater = !!def.noWater; L.collect = !!def.collect;
+  L.pools = []; L.slits = []; L.walls = []; L.herons = []; L.rooms = []; L.bld = null; L.spawn = null; L.floorY = B.baseH;
+  let x = def.bldDef ? 0 : -def.segs[0][1] / 2, pending = null, zoneEnd = -999;
+  for (const s of def.segs) {
+    const t = s[0], len = s[1], o = s[2] || {};
+    if (t === 'b') { L.bld = Object.assign({ x0: x, x1: x + len, theme: 'home', bowl: true, ceiling: false, guardCol: 0 }, def.bldDef); L.rooms.push(L.bld); L.spawn = { x: x + 4, z: 0 }; }
+    else if (t === 'j') { L.jungle = { x0: x, x1: x + len }; L.goalX = x + 16; }
+    else if (t === 'z') { pending = Object.assign({ x0: x, bowl: false }, ZONES[o.zone]); if (pending.theme === 'museum') L.museum = true; }
+    else if (t === 'ze') { zoneEnd = x; pending.x1 = x; if (pending.theme === 'museum') { pending.halls = []; for (let hx = pending.x0, k = 0; hx < x; hx += 40, k++) pending.halls.push({ x0: hx, x1: Math.min(hx + 40, x), c: MUSEUM_SEQ[k % MUSEUM_SEQ.length] }); } if (pending.exit) L.goalX = x + 3; L.rooms.push(pending); pending = null; }
+    else if (t === 'p' || t === 'o') {
+      const amp = pending ? (pending.amp != null ? pending.amp : 1.5) : 5, zc = (t === 'o' || (!pending && x < zoneEnd + 60)) ? 0 : amp * Math.sin(L.pools.length * 1.25 + 0.6);
+      L.pools.push({ x: x + len / 2, a: len / 2 / 1.2, b: o.b || 7, z: o.z != null ? o.z : zc, d: o.d || 2.4, x0: x, x1: x + len, ocean: t === 'o' });
+      for (const wf of (o.walls || (o.wall != null ? [o.wall] : []))) L.walls.push({ x: x + len * wf, broken: false, meshes: null });
+      if (o.final) L.goalX = x + (t === 'o' ? 14 : 6);
+    } else if (o.slit) {
+      const k = L.slits.length; L.slits.push({ x: x + len * 0.5, off: (k % 2 ? 1 : -1) * (1 + (k * 3) % 3), hw: 0.95 });
+      if (o.heron) L.herons.push({ x: x + len * 0.2, off: rnd(-3, 3), kind: 'heron' });
+      if (o.guard) L.herons.push({ x: x + len * 0.2, off: rnd(-3, 3), kind: 'guard' });
+    } else if (o.heron) L.herons.push({ x: x + len * 0.5, off: rnd(-3, 3), kind: 'heron' });
+    else if (o.guard) L.herons.push({ x: x + len * 0.6, off: rnd(-3, 3), kind: 'guard' });
+    if (o.guide) L.herons.push({ x: x + len * 0.45, off: rnd(-3, 3), kind: 'guard', role: 'guide' });
+    if (o.tour) for (const f of [0.2, 0.8]) L.herons.push({ x: x + len * f, off: rnd(-5, 5), kind: 'guard', role: 'tour' });
+    x += len;
+  }
+  L.xmin = -40; L.xmax = x + (def.lvl === 2 ? 60 : 70);
+  L.corr = 18;
+  L.pathZ = (px) => { const Pl = L.pools; if (!Pl.length) return 0; if (px <= Pl[0].x) return Pl[0].z; for (let i = 0; i < Pl.length - 1; i++) { const a = Pl[i], b = Pl[i + 1]; if (px <= b.x) return lerp(a.z, b.z, smooth(clamp((px - a.x) / (b.x - a.x), 0, 1))); } return Pl[Pl.length - 1].z; };
+  const zlim = (px, v) => { const r = L.rooms.find(q => px >= q.x0 && px < q.x1), m = r ? 11 : L.corr - 3; return clamp(v, -m, m); };
+  for (const s of L.slits) s.z = zlim(s.x, L.pathZ(s.x) + s.off);
+  for (const h of L.herons) h.z = zlim(h.x, L.pathZ(h.x) + h.off);
+  L.pools.forEach((p, i) => { if (!p.ocean && i >= 2 && (i - 2) % 3 === 0 && i < L.pools.length - 1) p.cp = true; });
+  L.cp = null; L.stations = [];
+  if (def.stations) for (let sx = def.collect ? 30 : 14; sx < L.goalX - (def.collect ? 12 : 24); sx += (def.collect ? 30 : 25)) {
+    let X = sx; if (L.slits.some(q => Math.abs(q.x - X) < 3.5) || L.walls.some(q => Math.abs(q.x - X) < 3.5)) X += 5;
+    L.stations.push({ x: X, z: L.pathZ(X), used: false });
+  }
+  L.minX = (L.rooms[0] && L.rooms[0].x0 <= 0.5) ? L.rooms[0].x0 + 1.6 : L.xmin + 8;
+  return L;
+}
+
+function hallIdx(x) { const r = roomAt(x); if (!r || !r.halls) return -1; for (const h of r.halls) if (x >= h.x0 && x < h.x1) return h.c; return r.halls.length ? r.halls[r.halls.length - 1].c : -1; }
+function roomAt(x) { const R = LVL.rooms; for (let i = 0; i < R.length; i++) if (x >= R[i].x0 && x < R[i].x1) return R[i]; return null; }
+function platTop(x, z) {
+  const r = roomAt(x); let best = 0;
+  if (!r) return 0;
+  for (const p of r.pl) {
+    if (x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1) {
+      const h = p.ramp ? lerp(p.h0, p.h1, (x - p.x0) / (p.x1 - p.x0)) : p.h;
+      if (h > best) best = h;
+    }
+  }
+  return best;
+}
+function softAt(x, z) {
+  const r = roomAt(x); if (!r) return false;
+  let best = -1, soft = false;
+  for (const p of r.pl) {
+    if (x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1) {
+      const h = p.ramp ? lerp(p.h0, p.h1, (x - p.x0) / (p.x1 - p.x0)) : p.h;
+      if (h > best) { best = h; soft = p.soft; }
+    }
+  }
+  if (best > 0.05) return soft;
+  for (const q of (r.rugs || [])) if (x >= q[0] && x <= q[1] && z >= q[2] && z <= q[3]) return true;
+  return false;
+}
+function H(x, z, noPlat) {
+  const L = LVL, r = roomAt(x);
+  let h;
+  if (r) h = L.floorY + (noPlat ? 0 : platTop(x, z));
+  else {
+    h = L.baseH + (fbm(x * 0.08, z * 0.08) - 0.5) * L.rough;
+    const az = Math.abs(z);
+    if (az > L.corr) h += smooth(clamp((az - L.corr) / 14, 0, 1)) * (L.hill + fbm(x * 0.05 + 11, z * 0.05) * L.hill * 0.9);
+  }
+  if (!L.noWater) for (const p of L.pools) {
+    const dx = (x - p.x) / p.a, dz = (z - p.z) / p.b, rr = Math.sqrt(dx * dx + dz * dz);
+    if (rr < 1.6) {
+      const s = smooth(clamp((1.55 - rr) / 0.9, 0, 1));
+      h = lerp(h, -p.d + (fbm(x * 0.2, z * 0.2) - 0.5) * 0.4, s);
+    }
+  }
+  return h;
+}
+
+/* ---------- scene objects that persist ---------- */
+const hemi = new THREE.HemisphereLight(0xffffff, 0x6f9a52, 0.9); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff3d0, 0.95); scene.add(sun); scene.add(sun.target);
+scene.fog = new THREE.Fog(0xd2eefc, 40, 190);
+scene.background = new THREE.Color(0xd2eefc);
+
+const skyGroup = new THREE.Group(); scene.add(skyGroup);
+const skyGeo = new THREE.SphereGeometry(520, 24, 16);
+const skyMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
+const skyMesh = new THREE.Mesh(skyGeo, skyMat); skyMesh.renderOrder = -10; skyGroup.add(skyMesh);
+const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(26, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfff3d0, fog: false }));
+skyGroup.add(sunDisc);
+const sunGlow = new THREE.Mesh(new THREE.SphereGeometry(52, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfff3d0, fog: false, transparent: true, opacity: 0.22, depthWrite: false }));
+skyGroup.add(sunGlow);
+const clouds = [];
+for (let i = 0; i < 12; i++) {
+  const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x666666, transparent: true, opacity: 0.92, fog: false });
+  const n = 4 + Math.floor(Math.random() * 3);
+  for (let j = 0; j < n; j++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(rnd(7, 13), 10, 8), m);
+    s.position.set(j * 9 - n * 4.5, rnd(-2, 3), rnd(-4, 4)); s.scale.y = 0.6; g.add(s);
+  }
+  g.userData = { x: rnd(-400, 400), z: rnd(-300, 300), y: rnd(70, 120), v: rnd(1.5, 4) };
+  skyGroup.add(g); clouds.push(g);
+}
+function setSky(top, bot) {
+  const pos = skyGeo.attributes.position, col = new Float32Array(pos.count * 3), a = new THREE.Color(top), b = new THREE.Color(bot), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const t = smooth(clamp(pos.getY(i) / 300 + 0.15, 0, 1));
+    c.copy(b).lerp(a, t); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  skyGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+}
+
+// water surface, follows the player
+const WCELL = 3, WN = 64;
+const waterGeo = new THREE.PlaneGeometry(WCELL * WN, WCELL * WN, WN, WN); waterGeo.rotateX(-Math.PI / 2);
+const waterBase = waterGeo.attributes.position.array.slice();
+const waterMat = new THREE.MeshPhongMaterial({ color: 0x3db3c6, transparent: true, opacity: 0.66, shininess: 90, specular: 0x9fe8ff, flatShading: true, depthWrite: false });
+const water = new THREE.Mesh(waterGeo, waterMat); water.frustumCulled = false; scene.add(water);
+const seaMat = new THREE.MeshBasicMaterial({ color: 0x2a9fb8, fog: true });
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), seaMat); sea.position.y = -0.12; scene.add(sea);
+function updateWater(t, cx, cz) {
+  const px = Math.round(cx / WCELL) * WCELL, pz = Math.round(cz / WCELL) * WCELL;
+  water.position.set(px, 0, pz); sea.position.x = px; sea.position.z = pz;
+  const p = waterGeo.attributes.position, b = waterBase;
+  for (let i = 0; i < p.count; i++) {
+    const wx = b[i * 3] + px, wz = b[i * 3 + 2] + pz;
+    p.setY(i, Math.sin(wx * 0.35 + t * 1.6) * 0.05 + Math.sin(wz * 0.42 - t * 1.25) * 0.045 + Math.sin((wx + wz) * 0.2 + t * 0.8) * 0.06);
+  }
+  p.needsUpdate = true;
+}
+
+/* ---------- level construction ---------- */
+let levelGroup = null, windG = [];
+function disposeGroup(g) {
+  g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
+}
+function instanced(geo, mat, list, setup) {
+  const m = new THREE.InstancedMesh(geo, mat, list.length), o = new THREE.Object3D(), c = new THREE.Color();
+  list.forEach((p, i) => { o.position.set(p[0], p[1], p[2]); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); const col = setup(o, i, c, p); o.updateMatrix(); m.setMatrixAt(i, o.matrix); if (col) m.setColorAt(i, c); });
+  m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.frustumCulled = false;
+  return m;
+}
+function makePalm() {
+  const g = new THREE.Group(), trunk = lamb(0x8a6238), leaf = lamb(0x2e9c4b);
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 6.4, 7), trunk); t.position.y = 3.2; t.rotation.z = 0.12; g.add(t);
+  const top = new THREE.Group(); top.position.set(-0.4, 6.4, 0); g.add(top);
+  for (let i = 0; i < 7; i++) {
+    const l = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), leaf); l.scale.set(2.3, 0.1, 0.55); l.position.x = 2.0;
+    const pv = new THREE.Group(); pv.rotation.y = i * TAU / 7; l.rotation.z = -0.35; pv.add(l); top.add(pv);
+  }
+  for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), lamb(0x6b4a2a)); c.position.set(-0.4 + i * 0.15, 6.0, (i - 1) * 0.3); g.add(c); }
+  return g;
+}
+function makeSign(text, sub) {
+  const g = new THREE.Group(), cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#b98a4e'; c.fillRect(0, 0, 512, 256); c.strokeStyle = '#6b4a2a'; c.lineWidth = 14; c.strokeRect(7, 7, 498, 242);
+  c.fillStyle = '#3a2410'; c.textAlign = 'center'; c.font = '800 64px Nunito, Arial'; c.fillText(text, 256, 120); c.font = '800 44px Nunito, Arial'; c.fillText(sub, 256, 190);
+  const tex = new THREE.CanvasTexture(cv);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 0.2), [lamb(0x7a5530), lamb(0x7a5530), lamb(0x7a5530), lamb(0x7a5530), new THREE.MeshLambertMaterial({ map: tex }), lamb(0x7a5530)]);
+  board.position.y = 3.2; g.add(board);
+  for (const s of [-1.5, 1.5]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 3.4, 6), lamb(0x6b4a2a)); p.position.set(s, 1.7, 0); g.add(p); }
+  g.rotation.y = -Math.PI / 2 + 0.25;
+  return g;
+}
+function makeHeron() {
+  const g = new THREE.Group(), wh = lamb(0xf6f8fa), gr = lamb(0x8fa1b0), og = lamb(0xffa43a), lg = lamb(0xd9a441);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 10), wh); body.scale.set(1.3, 0.7, 0.62); body.position.y = 1.5; g.add(body);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 1.1, 8), wh); neck.position.set(0.6, 2.1, 0); neck.rotation.z = -0.4; g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), wh); head.position.set(0.86, 2.62, 0); g.add(head);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.7, 6), og); beak.rotation.z = -Math.PI / 2; beak.position.set(1.3, 2.6, 0); g.add(beak);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), lamb(0x111111)); eye.position.set(0.95, 2.67, 0.12); g.add(eye);
+  const eye2 = eye.clone(); eye2.position.z = -0.12; g.add(eye2);
+  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.5, 5), lamb(0x222a30)); crest.rotation.z = Math.PI / 2 + 0.3; crest.position.set(0.6, 2.7, 0); g.add(crest);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.9, 6), gr); tail.rotation.z = Math.PI / 2; tail.position.set(-0.95, 1.5, 0); g.add(tail);
+  const legs = [];
+  for (const s of [-0.16, 0.16]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 5), lg); l.position.set(0, 0.75, s); g.add(l); legs.push(l); }
+  const wings = [];
+  for (const s of [1, -1]) {
+    const p = new THREE.Group(); p.position.set(0, 1.65, s * 0.28);
+    const w = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), gr); w.scale.set(0.9, 0.06, 1.5); w.position.z = s * 1.35; p.add(w); g.add(p); wings.push(p);
+  }
+  g.userData = { wings, legs };
+  g.scale.setScalar(1.5);
+  return g;
+}
+function foldHeron(h, f, t) {
+  const [wl, wr] = h.userData.wings;
+  const flap = f > 0.5 ? Math.sin(t * 12) * 0.7 : 0;
+  const fold = f > 0.5 ? 0.15 : 1.35;
+  wl.rotation.x = fold - flap; wr.rotation.x = -fold + flap;
+  for (const l of h.userData.legs) l.visible = f <= 0.5;
+}
+
+
+/* ---------- environment cross-fade (night club is dark and loud) ---------- */
+const CLUB_ENV = { fog: 0x14082a, fogN: 8, fogF: 78, hemiS: 0x8a6cff, hemiG: 0x1a0a30, hemiI: 0.62, sunC: 0x9a7aff, sunI: 0.25 };
+let envMix = 0, ENV0 = null;
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+function lerpCol(target, a, b, m) { _c1.setHex(a); _c2.setHex(b); target.copy(_c1).lerp(_c2, m); }
+function envOf(B) { return { fog: B.fog, fogN: B.fogN, fogF: B.fogF, hemiS: B.hemiS, hemiG: B.hemiG, hemiI: B.hemiI, sunC: B.sunC, sunI: B.sunI }; }
+function applyEnv(m) {
+  const a = ENV0, b = CLUB_ENV;
+  lerpCol(scene.fog.color, a.fog, b.fog, m); scene.background.copy(scene.fog.color);
+  scene.fog.near = lerp(a.fogN, b.fogN, m); scene.fog.far = lerp(a.fogF, b.fogF, m);
+  lerpCol(hemi.color, a.hemiS, b.hemiS, m); lerpCol(hemi.groundColor, a.hemiG, b.hemiG, m); hemi.intensity = lerp(a.hemiI, b.hemiI, m);
+  lerpCol(sun.color, a.sunC, b.sunC, m); sun.intensity = lerp(a.sunI, b.sunI, m);
+}
+function updateEnv(dt, t) {
+  const L = LVL; if (!L) return;
+  if (L.stationMeshes) L.stationMeshes.forEach((m, i) => { const u = m.userData, s = L.stations[i]; u.ring.rotation.x = t * 1.4 + i; u.m.color.setHSL(s.used ? 0.6 : (t * 0.2 + i * 0.1) % 1, s.used ? 0.1 : 0.9, s.used ? 0.5 : 0.65); u.m.opacity = s.used ? 0.35 : 0.9; u.disc.visible = !s.used; });
+  if (L.flagMeshes) L.flagMeshes.forEach((f, i) => { f.userData.cloth.rotation.y = Math.sin(t * 3 + i) * 0.25; });
+  if (!L.club || !P) return;
+  const rm = roomAt(P.x), tgt = rm && rm.theme === 'club' ? 1 : 0;
+  envMix += (tgt - envMix) * Math.min(1, dt * 3);
+  if (Math.abs(tgt - envMix) < 0.003) envMix = tgt;
+  applyEnv(envMix);
+  const fy = L.floorY;
+  L.clubLights.forEach((l, k) => {
+    l.position.set(P.x + Math.sin(t * 0.9 + k * 2.1) * 12, fy + 7, Math.cos(t * 1.3 + k * 1.7) * 9);
+    l.color.setHSL((t * 0.15 + k * 0.33) % 1, 1, 0.55); l.intensity = envMix * 1.5;
+  });
+  L.clubFx.visible = envMix > 0.05;
+  L.beams.forEach((b, i) => {
+    b.rotation.z = Math.sin(t * 0.8 + i) * 0.55; b.rotation.x = Math.cos(t * 0.6 + i * 1.7) * 0.45;
+    b.material.color.setHSL((t * 0.1 + i * 0.13) % 1, 1, 0.6); b.material.opacity = 0.17 * envMix;
+  });
+  L.discos.forEach(d => { d.rotation.y = t * 0.8; });
+}
+
+/* ---------- terrain ---------- */
+const _tc = new THREE.Color();
+function terrainColor(P, x, z, h, ny, out) {
+  const n = fbm(x * 0.12 + 3, z * 0.12), r = roomAt(x);
+  if (LVL.jungle && LVL.meme && x > LVL.jungle.x0 - 8 && h >= -0.3) { out.setHex(((Math.floor(x / 2.5) + Math.floor(z / 2.5)) & 1) ? 0xff8ad8 : 0xffe66a).lerp(_tc.setHex(0x8ae0ff), n * 0.35); return; }
+  if (LVL.jungle && x > LVL.jungle.x0 - 8 && h >= -0.3) { out.setHex(0x2f8f3a).lerp(_tc.setHex(0x1b6a2a), n); if (vnoise(x * 0.5, z * 0.5) > 0.8) out.lerp(_tc.setHex(0x5a4020), 0.5); return; }
+  if (h < -0.3) { out.copy(P.bedShallow).lerp(P.bedDeep, clamp((-h - 0.3) / 3, 0, 1)); return; }
+  if (r) {
+    const ix = Math.floor(x / 3), iz = Math.floor((z + 20) / 3), k = hash2(ix, iz);
+    if (r.theme === 'club') {
+      out.setHex(((ix + iz) & 1) ? 0x2a1458 : 0x3e1f7a);
+      if (k > 0.86) out.setHex(0xff3ca8); else if (k > 0.74) out.setHex(0x20d0ff); else if (k > 0.66) out.setHex(0xfff04a);
+      if (h < 0.4) out.lerp(_tc.setHex(0x20d0ff), 0.5);
+    } else if (r.theme === 'cafe') {
+      out.setHex(((Math.floor(z / 1.2) + ix) & 1) ? 0xb88a5a : 0xa57a4c); if ((ix + iz) % 5 === 0 && k > 0.5) out.setHex(0xe8d3b0);
+    } else if (r.theme === 'aquarium') {
+      out.setHex(((ix + iz) & 1) ? 0x9fc4d6 : 0x8fb6ca); if (k > 0.9) out.setHex(0xc8e6f2);
+    } else if (r.theme === 'museum') {
+      const hi = hallIdx(x); out.setHex(hi >= 0 ? MUSEUM_COLS[hi].col : r.floor); out.multiplyScalar(((ix + iz) & 1) ? 1 : 0.93);
+    } else if (r.theme === 'arena') {
+      out.setHex(((ix + iz) & 1) ? 0xb8c7d4 : 0xa9bccb);
+      if (Math.abs(z) > 9.8) out.setHex(0xe8e8ee);
+    } else out.setHex(r.floor).multiplyScalar(0.9 + 0.1 * hash2(Math.floor(z / 1.3), Math.floor(x / 7)));
+    return;
+  }
+  if (h < 0.4) out.copy(P.shore).lerp(P.ground, clamp((h + 0.3) / 0.7, 0, 1) * 0.45);
+  else {
+    out.copy(P.ground).lerp(P.ground2, n);
+    if (vnoise(x * 0.5, z * 0.5) > 0.78) out.lerp(P.dirt, 0.5);
+    if (ny < 0.82) out.lerp(P.rock, clamp((0.82 - ny) * 3, 0, 0.9));
+    if (h > 3.2) out.lerp(P.rock2, clamp((h - 3.2) / 3, 0, 0.6));
+  }
+}
+function buildTerrain(L, P) {
+  const cell = 1.6, w = L.xmax - L.xmin, d = 130;
+  const nx = Math.ceil(w / cell), nz = Math.ceil(d / cell);
+  const g = new THREE.PlaneGeometry(w, d, nx, nz); g.rotateX(-Math.PI / 2);
+  const pos = g.attributes.position, cx = (L.xmin + L.xmax) / 2;
+  for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) + cx, z = pos.getZ(i); pos.setXYZ(i, x, H(x, z, true), z); }
+  g.computeVertexNormals();
+  const nrm = g.attributes.normal, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+  const pp = {}; for (const k in P) pp[k] = new THREE.Color(P[k]);
+  for (let i = 0; i < pos.count; i++) {
+    terrainColor(pp, pos.getX(i), pos.getZ(i), pos.getY(i), nrm.getY(i), c);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+}
+function scatter(n, tries, fn) {
+  const out = [];
+  for (let k = 0; k < tries && out.length < n; k++) {
+    const x = rnd(LVL.xmin + 10, LVL.xmax - 10), z = rnd(-60, 60), h = H(x, z);
+    if (roomAt(x - 3) || roomAt(x + 3)) continue;
+    if (fn(x, z, h)) out.push([x, h, z]);
+  }
+  return out;
+}
+
+/* ---------- dam, guard ---------- */
+function makeWall(w, zr) {
+  const g = new THREE.Group(), n = Math.floor(zr * 2 / 0.9) + 1, list = [], cols = [0x8a5d33, 0x9c6d3d, 0x7a4f2a];
+  for (let k = 0; k < n; k++) { const z = -zr + k * 0.9; list.push([w.x + Math.sin(z * 7) * 0.1, 0.55 + Math.sin(z * 3) * 0.12, z]); }
+  g.add(instanced(new THREE.CylinderGeometry(0.4, 0.44, 4.8, 8), lamb(0xffffff), list, (o, i, c) => { c.setHex(cols[i % 3]); return true; }));
+  g.add(instanced(new THREE.ConeGeometry(0.4, 0.5, 8), lamb(0x9c6d3d), list.map(p => [p[0], p[1] + 2.65, p[2]]), () => { }));
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, zr * 2 + 1), lamb(0x5f3d1f)); bar.position.set(w.x - 0.45, 0.9, 0); g.add(bar);
+  const bar2 = bar.clone(); bar2.position.y = -0.4; g.add(bar2);
+  return g;
+}
+function makeSlit(s, zr, indoor) {
+  const g = new THREE.Group(), list = [], cols = indoor ? [0x6b4a2a, 0x7a5535, 0x5a3a24] : [0x8f959c, 0x7e858c, 0x9aa0a6];
+  for (let z = -zr; z <= zr; z += 0.9) { if (Math.abs(z - s.z) < s.hw + 0.45) continue; list.push([s.x, 0.4, z]); }
+  g.add(instanced(new THREE.BoxGeometry(0.7, 4.8, 0.8), lamb(0xffffff), list, (o, i, c) => { c.setHex(cols[i % 3]); return true; }));
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, zr * 2 + 1), lamb(indoor ? 0x4a2f1c : 0x6e747a)); top.position.set(s.x, 5.2, 0); g.add(top);
+  for (const sg of [-1, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.9, 4.6, 0.25), bas(0xffd24a)); m.position.set(s.x, 2.7, s.z + sg * (s.hw + 0.12)); g.add(m); }
+  return g;
+}
+function makeFlag() {
+  const g = new THREE.Group(), pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 5.4, 6).translate(0, 2.7, 0), lamb(0xdddddd)); g.add(pole);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff5a4a, side: THREE.DoubleSide }), cloth = new THREE.Group(), fl = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.2).translate(0.95, 0, 0), mat);
+  cloth.position.set(0, 4.7, 0); cloth.add(fl); g.add(cloth); g.userData = { mat, cloth };
+  return g;
+}
+function makeStation() {
+  const g = new THREE.Group(), m = new THREE.MeshBasicMaterial({ color: 0x7df0ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.2, 10, 28).rotateY(Math.PI / 2), m); ring.position.y = 2.4; g.add(ring);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(2.1, 24).rotateY(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x7df0ff, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })); disc.position.y = 2.4; g.add(disc);
+  g.userData = { ring, m, disc };
+  return g;
+}
+function makeGuard(col) {
+  const g = new THREE.Group(), suit = lamb(col), skin = lamb(0xe0b48a), dark = lamb(0x111114);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.0, 1.1), suit); torso.position.y = 1.6; g.add(torso);
+  const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.3), lamb(0xf2f2f2)); shirt.position.set(0.39, 1.65, 0); g.add(shirt);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), skin); head.position.y = 2.42; g.add(head);
+  const shades = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.5), dark); shades.position.set(0.27, 2.47, 0); g.add(shades);
+  const legs = [], arms = [];
+  for (const s of [-0.28, 0.28]) {
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.32).translate(0, -0.5, 0), dark); l.position.set(0, 1.1, s); g.add(l); legs.push(l);
+    const a = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.9, 0.26).translate(0, -0.45, 0), suit); a.position.set(0, 2.05, s * 2.4); g.add(a); arms.push(a);
+  }
+  g.userData = { legs, arms }; g.scale.setScalar(1.5);
+  return g;
+}
+function foldGuard(g, moving, t) {
+  const [l1, l2] = g.userData.legs, [a1, a2] = g.userData.arms, s = moving ? Math.sin(t * 9) * 0.6 : 0;
+  l1.rotation.z = s; l2.rotation.z = -s; a1.rotation.z = -s; a2.rotation.z = s;
+}
+
+/* ---------- rooms ---------- */
+function wallTexture(theme, col) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256; const c = cv.getContext('2d');
+  if (theme === 'club') {
+    c.fillStyle = '#1b1033'; c.fillRect(0, 0, 256, 256);
+    c.fillStyle = '#26164a'; for (let x = 0; x < 256; x += 64) c.fillRect(x, 0, 32, 256);
+    c.shadowBlur = 14; c.shadowColor = '#ff3ca8'; c.fillStyle = '#ff3ca8'; c.fillRect(0, 70, 256, 7);
+    c.shadowColor = '#20d0ff'; c.fillStyle = '#20d0ff'; c.fillRect(0, 118, 256, 7);
+    c.shadowColor = '#fff04a'; c.fillStyle = '#fff04a'; c.fillRect(0, 166, 256, 5);
+    c.shadowBlur = 0; c.fillStyle = '#0b0618'; c.fillRect(0, 226, 256, 30);
+  } else if (theme === 'aquarium') {
+    const gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#59c2ea'); gr.addColorStop(1, '#0a4a7a'); c.fillStyle = gr; c.fillRect(0, 0, 256, 256);
+    c.fillStyle = 'rgba(255,255,255,0.35)'; for (let k = 0; k < 14; k++) { c.beginPath(); c.arc((k * 53) % 256, (k * 91) % 220 + 10, 3 + k % 4, 0, 6.3); c.fill(); }
+    c.fillStyle = 'rgba(10,40,70,0.55)';
+    for (const [fx, fy, s] of [[60, 80, 1], [170, 140, 1.4], [120, 190, 0.8]]) { c.beginPath(); c.ellipse(fx, fy, 26 * s, 11 * s, 0, 0, 6.3); c.fill(); c.beginPath(); c.moveTo(fx - 24 * s, fy); c.lineTo(fx - 42 * s, fy - 12 * s); c.lineTo(fx - 42 * s, fy + 12 * s); c.fill(); }
+    c.fillStyle = '#0a3a5c'; c.fillRect(0, 232, 256, 24);
+  } else if (theme === 'terra') {
+    c.fillStyle = '#bfe0cc'; c.fillRect(0, 0, 256, 256); c.strokeStyle = '#6a9a80'; c.lineWidth = 4; for (let x = 0; x <= 256; x += 64) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 256); c.stroke(); } c.beginPath(); c.moveTo(0, 128); c.lineTo(256, 128); c.stroke();
+    c.fillStyle = 'rgba(40,120,60,.55)'; for (let k = 0; k < 6; k++) { c.beginPath(); c.ellipse(20 + k * 44, 220, 16, 34 + (k % 3) * 8, 0.2 * (k % 2 ? 1 : -1), 0, 6.3); c.fill(); }
+    c.fillStyle = '#6b4a2a'; c.fillRect(0, 238, 256, 18);
+  } else if (theme === 'arena') {
+    c.fillStyle = '#cfe6f5'; c.fillRect(0, 0, 256, 256);
+    c.fillStyle = '#2a6fd0'; for (let x = 0; x < 256; x += 64) c.fillRect(x + 8, 40, 48, 110);
+    c.fillStyle = '#ffffff'; for (let x = 0; x < 256; x += 64) { c.beginPath(); c.arc(x + 32, 95, 14, 0, 6.3); c.fill(); }
+    c.fillStyle = '#7fb4d8'; c.fillRect(0, 226, 256, 30);
+  } else {
+    const base = new THREE.Color(col); const css = '#' + base.getHexString(), dark = '#' + base.clone().multiplyScalar(0.9).getHexString(), low = '#' + base.clone().multiplyScalar(0.62).getHexString();
+    c.fillStyle = css; c.fillRect(0, 0, 256, 256);
+    c.fillStyle = dark; for (let x = 0; x < 256; x += 32) c.fillRect(x, 0, 16, 256);
+    c.fillStyle = low; c.fillRect(0, 226, 256, 30);
+    c.fillStyle = '#ffffff'; c.fillRect(70, 50, 116, 120);
+    const g = c.createLinearGradient(0, 56, 0, 164); g.addColorStop(0, '#6db4ee'); g.addColorStop(1, '#dff1ff');
+    c.fillStyle = g; c.fillRect(78, 58, 100, 104);
+    c.fillStyle = '#c9ced6'; c.fillRect(84, 126, 18, 36); c.fillRect(108, 108, 22, 54); c.fillRect(136, 120, 16, 42); c.fillRect(158, 100, 14, 62);
+    c.fillStyle = '#ffffff'; c.fillRect(124, 58, 6, 104); c.fillRect(78, 106, 100, 6);
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; return t;
+}
+const SOFT_COL = { mattress: 0xcfe3ff, sofa: 0xe86a8a, beanbag: 0xff9a3c, paper: 0xffffff, sponge: 0xffe45c, cushion: 0xd9a066 };
+const bas = (c) => new THREE.MeshBasicMaterial({ color: c });
+function makePlatform(p, fy) {
+  const g = new THREE.Group(), w = p.x1 - p.x0, d = p.z1 - p.z0, cx = p.x0 + w / 2, cz = p.z0 + d / 2;
+  if (p.ramp) {
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(w, 0); sh.lineTo(w, p.h1); sh.lineTo(0, p.h0); sh.closePath();
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false }), lamb(p.color)); m.position.set(p.x0, fy, p.z0); g.add(m);
+    for (let k = 1; k < 7; k++) {
+      const t = k / 7, st = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, d), lamb(0x5f4328)); st.position.set(p.x0 + w * t, fy + lerp(p.h0, p.h1, t) + 0.03, cz); g.add(st);
+    }
+    return g;
+  }
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, p.h, d), lamb(p.soft ? 0xffffff : p.color)); body.position.set(cx, fy + p.h / 2, cz);
+  if (p.soft) body.material.color.setHex(SOFT_COL[p.kind] || p.color);
+  g.add(body);
+  if (p.soft) {
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w * 0.94, 0.22, d * 0.94), lamb(0xffffff)); top.material.color.setHex(SOFT_COL[p.kind] || p.color).offsetHSL(0, 0, 0.08);
+    top.position.set(cx, fy + p.h + 0.08, cz); g.add(top);
+    const sm = lamb(0x3a6fb0); sm.color.setHex(SOFT_COL[p.kind] || p.color).offsetHSL(0, 0.1, -0.2);
+    for (let k = 0; k < 4; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.05, d * 0.06), sm); st.position.set(cx, fy + p.h + 0.2, p.z0 + d * (0.2 + 0.2 * k)); g.add(st); }
+  } else {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.18, d + 0.1), lamb(0x000000)); edge.material.color.setHex(p.color).multiplyScalar(0.72);
+    edge.position.set(cx, fy + p.h + 0.02, cz); g.add(edge);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, 0.06, d - 0.3), lamb(0x000000)); top.material.color.setHex(p.color).multiplyScalar(1.12);
+    top.position.set(cx, fy + p.h + 0.12, cz); g.add(top);
+  }
+  const inner = p.z0 >= 0 ? p.z0 - 0.05 : p.z1 + 0.05, face = p.z0 >= 0 ? -1 : 1;
+  if (p.kind === 'speaker') {
+    for (const k of [0.3, 0.72]) {
+      const wf = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(w, d) * 0.3, Math.min(w, d) * 0.3, 0.2, 14), bas(0x55556a)); wf.rotation.x = Math.PI / 2;
+      wf.position.set(cx, fy + p.h * k, inner); g.add(wf);
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(w, d) * 0.12, Math.min(w, d) * 0.12, 0.25, 10), bas(0xff3ca8)); cone.rotation.x = Math.PI / 2; cone.position.set(cx, fy + p.h * k, inner + face * 0.04); g.add(cone);
+    }
+  } else if (p.kind === 'bar') {
+    for (let k = 0; k < 6; k++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.1, 6), lamb([0x4aff9a, 0xff9a3c, 0x4ac0ff][k % 3])); b.position.set(p.x0 + 1 + k * (w - 2) / 5, fy + p.h + 0.7, cz); g.add(b); }
+  } else if (p.kind === 'stage') {
+    const neon = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.12, 0.12), bas(0xff3ca8)); neon.position.set(cx, fy + p.h + 0.12, inner); g.add(neon);
+  } else if (p.kind === 'dj') {
+    for (const k of [-1, 1]) { const dsk = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.12, 16), bas(0x20d0ff)); dsk.position.set(cx + k * 2.2, fy + p.h + 0.22, cz); g.add(dsk); }
+  }
+  return g;
+}
+function labelPlane(text, col, w, h) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const c = cv.getContext('2d');
+  c.fillStyle = '#10241a'; c.fillRect(0, 0, 256, 64); c.strokeStyle = col; c.lineWidth = 4; c.strokeRect(3, 3, 250, 58);
+  c.fillStyle = col; c.font = '800 38px Nunito, Arial'; c.textAlign = 'center'; c.fillText(text, 128, 46);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv) }));
+  return m;
+}
+function buildBuilding(L, R) {
+  const g = new THREE.Group(), fy = L.floorY, len = R.x1 - R.x0, hh = 20;
+  const tex = wallTexture(R.theme, R.wall); tex.repeat.set(len / 16, 1);
+  const wm = new THREE.MeshLambertMaterial({ map: tex });
+  for (const sgn of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(len, hh, 0.6), wm); w.position.set(R.x0 + len / 2, fy + hh / 2 - 0.4, sgn * 14.8); g.add(w); }
+  const flat = lamb(R.wall);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(30, hh).rotateY(Math.PI / 2), flat); back.position.set(R.x0, fy + hh / 2 - 0.4, 0); g.add(back);
+  if (R.ceiling) {
+    const ce = new THREE.Mesh(new THREE.PlaneGeometry(len, 30).rotateX(Math.PI / 2), bas(0x0c0620)); ce.position.set(R.x0 + len / 2, fy + hh - 0.4, 0); g.add(ce);
+  }
+  const dw = R.doorW || 3.2;
+  for (const sgn of [-1, 1]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.6, hh, 14.8 - dw), flat); f.position.set(R.x1, fy + hh / 2 - 0.4, sgn * (dw + 14.8) / 2); g.add(f); }
+  const lint = new THREE.Mesh(new THREE.BoxGeometry(0.6, hh - 7.5, dw * 2 + 0.2), flat); lint.position.set(R.x1, fy + 7.5 + (hh - 7.5) / 2 - 0.4, 0); g.add(lint);
+  const fr = lamb(R.theme === 'club' ? 0x2a2a46 : (R.theme === 'cafe' ? 0xffd24a : 0x6b4a2a));
+  for (const sgn of [-1, 1]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.8, 7.6, 0.5), fr); f.position.set(R.x1, fy + 3.6, sgn * (dw + 0.1)); g.add(f); }
+  const fh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, dw * 2 + 0.6), fr); fh.position.set(R.x1, fy + 7.5, 0); g.add(fh);
+  if (R.theme === 'museum') {
+    const pm = new THREE.MeshLambertMaterial({ color: 0x7a838b, side: THREE.DoubleSide });
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 11, 18, 1, true).rotateZ(Math.PI / 2), pm); pipe.position.set(R.x1 + 0.5, fy + 1.5, 0); g.add(pipe);
+    for (const dx of [-5, 5.8]) { const rim = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.22, 8, 18).rotateY(Math.PI / 2), lamb(0xb0642a)); rim.position.set(R.x1 + 0.5 + dx, fy + 1.5, 0); g.add(rim); }
+    for (const h of R.halls) { const lb = labelPlane(MUSEUM_COLS[h.c].name.toUpperCase(), '#' + MUSEUM_COLS[h.c].col.toString(16).padStart(6, '0'), 9, 1.8); lb.rotation.y = -Math.PI / 2; lb.position.set(h.x0 + 0.6, fy + 9, 0); g.add(lb); }
+  }
+  if (R.theme === 'aquarium') {
+    const pm = new THREE.MeshLambertMaterial({ color: 0x8a949c, side: THREE.DoubleSide });
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 11, 22, 1, true).rotateZ(Math.PI / 2), pm); pipe.position.set(R.x1 + 0.5, fy + 2.5, 0); g.add(pipe);
+    for (const dx of [-5, 5.8]) { const rim = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.3, 8, 22).rotateY(Math.PI / 2), lamb(0xb0642a)); rim.position.set(R.x1 + 0.5 + dx, fy + 2.5, 0); g.add(rim); }
+    for (let x = R.x0 + 18, k = 0; x < R.x1 - 6; x += 28, k++) {
+      const sgn = k % 2 ? 1 : -1, fb = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), bas(0x0d3f66)); fb.scale.set(2.6, 0.7, 0.2); fb.position.set(x, fy + 6.5, sgn * 14.4); g.add(fb);
+      const ft = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.6, 4), bas(0x0d3f66)); ft.rotation.z = Math.PI / 2; ft.position.set(x - 3.1, fy + 6.5, sgn * 14.4); g.add(ft);
+    }
+  }
+  if (R.theme !== 'home') { const ex = (R.theme === 'aquarium' || R.theme === 'museum') ? labelPlane('ТРУБА', '#ffb04a', 5, 1.25) : (R.theme === 'cafe' ? labelPlane('ЩЕЛЬ', '#ffd24a', 5, 1.25) : labelPlane('ВЫХОД', '#4aff9a', 5, 1.25)); ex.rotation.y = -Math.PI / 2; ex.position.set(R.x1 - 0.45, fy + 8.6, 0); g.add(ex); }
+  for (const p of R.pl) g.add(makePlatform(p, fy));
+  for (const r of (R.rugs || [])) { const m = new THREE.Mesh(new THREE.BoxGeometry(r[1] - r[0], 0.12, r[3] - r[2]), lamb(r[4])); m.position.set((r[0] + r[1]) / 2, fy + 0.06, (r[2] + r[3]) / 2); g.add(m); }
+  if (R.theme === 'home' || R.theme === 'cafe') {
+    for (let x = R.x0 + 14; x < R.x1; x += 22) {
+      const l = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff2c0 })); l.position.set(x, fy + 15, 0); g.add(l);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 5, 4), lamb(0x555555)); c.position.set(x, fy + 17.6, 0); g.add(c);
+    }
+  } else if (R.theme === 'club') {
+    L.club = true; L.clubFx = new THREE.Group(); L.beams = []; L.discos = []; L.clubLights = [];
+    for (let x = R.x0 + 22; x < R.x1 - 10; x += 34) {
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), new THREE.MeshPhongMaterial({ color: 0xdfe6f2, shininess: 120, specular: 0xffffff, flatShading: true }));
+      ball.position.set(x, fy + 15.8, 0); g.add(ball); L.discos.push(ball);
+      const str = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 3.2, 4), bas(0x888899)); str.position.set(x, fy + 18, 0); g.add(str);
+    }
+    for (let k = 0, x = R.x0 + 12; x < R.x1 - 6; x += 15, k++) {
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 17, 14, 1, true).translate(0, -8.5, 0), new THREE.MeshBasicMaterial({ color: 0xff3ca8, transparent: true, opacity: 0.17, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      beam.position.set(x, fy + 19, (k % 2 ? 1 : -1) * 6); L.clubFx.add(beam); L.beams.push(beam);
+    }
+    g.add(L.clubFx);
+    for (let k = 0; k < 3; k++) { const pl = new THREE.PointLight(0xff3ca8, 0, 42, 1.4); pl.position.set(0, fy + 7, 0); g.add(pl); L.clubLights.push(pl); }
+  } else if (R.theme === 'arena') {
+    const cols = [0xff5a5a, 0xffd24a, 0x4ac0ff, 0x6ae06a];
+    for (let x = R.x0 + 18, k = 0; x < R.x1 - 10; x += 26, k++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.3, 8, 24), bas(cols[k % 4])); ring.position.set(x, fy + 11, 0); ring.rotation.y = Math.PI / 2; g.add(ring);
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 8, 4), bas(0x888899)); rope.position.set(x, fy + 15.6, 0); g.add(rope);
+    }
+  }
+  return g;
+}
+function buildCity(L) {
+  const g = new THREE.Group();
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 256; const c = cv.getContext('2d');
+  c.fillStyle = '#ffffff'; c.fillRect(0, 0, 128, 256);
+  for (let y = 10; y < 250; y += 24) for (let x = 10; x < 120; x += 22) { c.fillStyle = hash2(x, y) > 0.35 ? '#5d7fa6' : '#f7e7a8'; c.fillRect(x, y, 12, 14); }
+  const tex = new THREE.CanvasTexture(cv);
+  const list = [];
+  for (const side of [-1, 1]) for (let x = -30; x < L.xmax; x += rnd(12, 18)) {
+    const w = rnd(8, 14), d = rnd(8, 14), h = rnd(16, 52), z = side * (rnd(26, 32) + d / 2 + (Math.random() < 0.4 ? rnd(0, 26) : 0));
+    list.push([x, L.baseH - 1, z, w, h, d]);
+  }
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ map: tex }), list.length), o = new THREE.Object3D(), col = new THREE.Color();
+  list.forEach((b, i) => { o.position.set(b[0], b[1], b[2]); o.scale.set(b[3], b[4], b[5]); o.rotation.set(0, 0, 0); o.updateMatrix(); m.setMatrixAt(i, o.matrix); col.setHSL(rnd(0.05, 0.62), 0.25, rnd(0.62, 0.82)); m.setColorAt(i, col); });
+  m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.frustumCulled = false; g.add(m);
+  const lamps = [];
+  for (let x = L.rooms.length ? L.rooms[0].x1 + 10 : 10; x < L.xmax - 20; x += 22) for (const sgn of [-1, 1]) { const z = sgn * 12.5 + rnd(-1, 1), h = H(x, z); if (h > 0.5 && !roomAt(x)) lamps.push([x, h, z]); }
+  g.add(instanced(new THREE.CylinderGeometry(0.1, 0.14, 6, 6).translate(0, 3, 0), lamb(0x45494f), lamps, () => { }));
+  g.add(instanced(new THREE.SphereGeometry(0.42, 8, 6).translate(0, 6.2, 0), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), lamps, () => { }));
+  return g;
+}
+
+function buildLevel(type, i) {
+  if (levelGroup) { scene.remove(levelGroup); disposeGroup(levelGroup); }
+  LI = i; CUR = type; LVL = buildSpec(levelDef(type, i));
+  const L = LVL, B = BIOMES[L.bio];
+  levelGroup = new THREE.Group(); scene.add(levelGroup);
+  L.club = false; L.clubLights = []; L.beams = []; L.discos = []; L.clubFx = null; envMix = 0; ENV0 = envOf(B);
+  // environment
+  scene.fog.color.setHex(B.fog); scene.fog.near = B.fogN; scene.fog.far = B.fogF; scene.background.setHex(B.fog);
+  hemi.color.setHex(B.hemiS); hemi.groundColor.setHex(B.hemiG); hemi.intensity = B.hemiI;
+  sun.color.setHex(B.sunC); sun.intensity = B.sunI;
+  sunDisc.material.color.setHex(B.sunC); sunGlow.material.color.setHex(B.sunC);
+  sunDisc.position.set(B.sunPos[0], B.sunPos[1], B.sunPos[2]).normalize().multiplyScalar(480);
+  sunGlow.position.copy(sunDisc.position);
+  setSky(B.skyTop, B.skyBot);
+  waterMat.color.setHex(B.water); waterMat.opacity = B.wOp; seaMat.color.setHex(B.sea);
+  water.visible = sea.visible = !L.noWater;
+  // terrain and rooms
+  levelGroup.add(buildTerrain(L, B.pal));
+  for (const R of L.rooms) levelGroup.add(buildBuilding(L, R));
+  if (B.city) levelGroup.add(buildCity(L));
+  // trees
+  const tc = B.tc || [0.22, 0.32, 0.34, 0.46];
+  const trees = scatter(B.trees, 3000, (x, z, h) => h > 1.0 && (Math.abs(z) > 12 || Math.random() < 0.05) && x > L.xmin + 12 && x < L.xmax - 10);
+  if (B.kind === 'tree') {
+    levelGroup.add(instanced(new THREE.CylinderGeometry(0.22, 0.32, 2.4, 6).translate(0, 1.2, 0), lamb(0x7a5530), trees, (o) => { o.scale.setScalar(rnd(0.8, 1.4)); }));
+    levelGroup.add(instanced(new THREE.IcosahedronGeometry(1.7, 1).translate(0, 3.6, 0), lamb(0xffffff), trees, (o, i, c) => { o.scale.setScalar(rnd(0.8, 1.4)); o.rotation.y = rnd(0, 6); c.setHSL(rnd(tc[0], tc[1]), 0.55, rnd(tc[2], tc[3])); return true; }));
+  } else if (B.kind === 'pine') {
+    levelGroup.add(instanced(new THREE.CylinderGeometry(0.25, 0.35, 2.2, 6).translate(0, 1.1, 0), lamb(0x5f4328), trees, (o) => { o.scale.setScalar(rnd(0.9, 1.5)); }));
+    for (let k = 0; k < 3; k++) levelGroup.add(instanced(new THREE.ConeGeometry(2.2 - k * 0.55, 2.6, 8).translate(0, 2.6 + k * 1.5, 0), lamb(0xffffff), trees, (o, i, c) => { const s = 0.9 + hash2(i, 5) * 0.6; o.scale.setScalar(s); c.setHSL(0.35 + hash2(i, 9) * 0.05, 0.5, 0.2 + hash2(i, 3) * 0.1 + k * 0.03); return true; }));
+  } else {
+    for (const p of trees) { const m = makePalm(); m.position.set(p[0], p[1] - 0.1, p[2]); m.rotation.y = rnd(0, 6); m.scale.setScalar(rnd(0.9, 1.3)); levelGroup.add(m); }
+  }
+  // rocks, flowers, crates, reeds
+  const rocks = B.rocks ? scatter(B.rocks, 2000, (x, z, h) => h > 0.5 && x > L.xmin + 10 && (Math.abs(z) > 11 || Math.random() < 0.1)) : [];
+  const rs = B.rockScale || 1;
+  if (rocks.length) levelGroup.add(instanced(new THREE.DodecahedronGeometry(1, 0), lamb(0xffffff), rocks, (o, i, c) => { o.scale.set(rnd(0.5, 1.6) * rs, rnd(0.4, 1.0) * rs, rnd(0.5, 1.6) * rs); o.rotation.set(rnd(0, 3), rnd(0, 3), 0); o.position.y += 0.2; c.setHex(B.pal.rock).offsetHSL(0, 0, rnd(-0.06, 0.08)); return true; }));
+  if (B.flowers) {
+    const fl = scatter(500, 4000, (x, z, h) => h > 0.5 && h < 2.2);
+    levelGroup.add(instanced(new THREE.IcosahedronGeometry(0.14, 0).translate(0, 0.35, 0), lamb(0xffffff), fl, (o, i, c) => { c.setHSL([0.0, 0.12, 0.15, 0.78, 0.58][i % 5], 0.85, 0.62); return true; }));
+  }
+  if (B.crates) {
+    const cr = scatter(B.crates, 3000, (x, z, h) => h > 0.6 && Math.abs(z) > 5 && Math.abs(z) < 30);
+    levelGroup.add(instanced(new THREE.BoxGeometry(1.6, 1.6, 1.6).translate(0, 0.8, 0), lamb(0xffffff), cr, (o, i, c) => { o.rotation.y = rnd(0, 3); o.scale.setScalar(rnd(0.7, 1.5)); c.setHex([0xb98a4e, 0x3a7fd0, 0xd8573a, 0x5a9a6a][i % 4]); return true; }));
+  }
+  const reeds = scatter(B.reeds, 8000, (x, z, h) => h > -0.2 && h < 0.45 && Math.abs(z) < 16);
+  levelGroup.add(instanced(new THREE.ConeGeometry(0.07, 1.6, 4).translate(0, 0.8, 0), lamb(0x6f9a3a), reeds, (o) => { o.scale.y = rnd(0.7, 1.5); o.rotation.z = rnd(-0.25, 0.25); o.rotation.x = rnd(-0.25, 0.25); }));
+  // checkpoints and transformation rings
+  L.flagMeshes = [];
+  for (const p of L.pools) if (p.cp) {
+    const f = makeFlag(), sgn = p.z > 0 ? -1 : 1, fz = p.z + sgn * p.b * 1.4, fx = p.x;
+    f.position.set(fx, Math.max(H(fx, fz), 0.2), fz); levelGroup.add(f); p.flagMat = f.userData.mat; L.flagMeshes.push(f);
+  }
+  L.stationMeshes = L.stations.map(s => { const m = makeStation(); m.position.set(s.x, Math.max(H(s.x, s.z), 0), s.z); levelGroup.add(m); return m; });
+  // dams, slits, herons, guards, sign
+  for (const s of L.slits) levelGroup.add(makeSlit(s, roomAt(s.x) ? 13.8 : L.corr - 0.2, !!roomAt(s.x)));
+  for (const w of L.walls) { w.meshes = makeWall(w, roomAt(w.x) ? 13.8 : L.corr + 2); levelGroup.add(w.meshes); }
+  L.herons = L.herons.map(hd => {
+    const guard = hd.kind === 'guard', rm = roomAt(hd.x);
+    const m = guard ? makeGuard(hd.role === 'guide' ? 0x9a1f2a : hd.role === 'tour' ? [0xf2a23a, 0x4aa8e0, 0xe05aa0, 0x8ad05a][Math.floor(rnd(0, 4))] : (rm ? rm.guardCol : 0x15151a)) : makeHeron(), hy = guard ? H(hd.x, hd.z) : Math.max(H(hd.x, hd.z), 0.4);
+    m.position.set(hd.x, hy, hd.z); levelGroup.add(m); if (!guard) foldHeron(m, 0, 0);
+    if (hd.role === 'tour') m.scale.setScalar(1.25);
+    return { m, kind: hd.kind, role: hd.role, px: hd.x, pz: hd.z, x: hd.x, z: hd.z, y: hy, hy, state: 'idle', cd: 0, face: rnd(0, 6), t: rnd(0, 6) };
+  });
+  if (L.jungle) {
+    const J = L.jungle, big = [];
+    for (let k = 0; k < 420; k++) { const x = rnd(J.x0 + 4, J.x1 + 30), z = rnd(-45, 45); if (Math.abs(z) < 6 + Math.max(0, 14 - (x - J.x0)) * 0.0 && x < J.x1 - 6) continue; if (Math.abs(z) < 5.5 && x < J.x1 - 4) continue; big.push([x, H(x, z), z]); }
+    levelGroup.add(instanced(new THREE.CylinderGeometry(0.4, 0.6, 5, 7).translate(0, 2.5, 0), lamb(0x6a4a2a), big, (o) => { o.scale.set(rnd(1, 1.6), rnd(1.3, 2.2), rnd(1, 1.6)); }));
+    levelGroup.add(instanced(new THREE.IcosahedronGeometry(3.2, 1).translate(0, 7.5, 0), lamb(0xffffff), big, (o, i, c) => { o.scale.set(rnd(1, 1.5), rnd(0.8, 1.2), rnd(1, 1.5)); if (L.meme) c.setHSL(rnd(0, 1), 0.85, 0.62); else c.setHSL(rnd(0.27, 0.36), 0.6, rnd(0.26, 0.4)); return true; }));
+    const ax = J.x0 + 2, arch = new THREE.Group();
+    for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 9, 8), lamb(0x6a4a2a)); p.position.set(ax, H(ax, s * 6) + 4.5, s * 6); arch.add(p); }
+    const bn = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, 13), lamb(0x3a7a2a)); bn.position.set(ax, H(ax, 0) + 9.2, 0); arch.add(bn);
+    const lb = labelPlane(L.meme ? (L.yt ? 'ЮТУБ-ЛЭНД' : 'МЕМО-ЛЭНД') : 'ДЖУНГЛИ', L.meme ? '#ff9ae8' : '#7dff9a', 9, 2.2); lb.rotation.y = -Math.PI / 2; lb.position.set(ax - 0.4, H(ax, 0) + 9.3, 0); arch.add(lb);
+    levelGroup.add(arch);
+  }
+  const sgx = L.rooms.length ? L.rooms[0].x1 + 8 : 4; const sg = makeSign(((SPEC[type] && SPEC[type].liz) || type === 'lfinal') ? (L.meme ? (L.yt ? 'ЮТУБ-ЛЭНД' : 'МЕМО-ЛЭНД') : 'ДЖУНГЛИ') : 'ОКЕАН', L.km[0] + ' км'); sg.position.set(sgx, Math.max(H(sgx, -11), 0.4), -11); levelGroup.add(sg);
+  L.goldFish = null;
+  return L;
+}
+/* ---------- save, audio, toast ---------- */
+const NFISH = FISH_ORDER.length;
+const SAVE = { unlocked: NFISH, finished: false, freed: {}, finalDone: false, lizDone: false, prog: { gold: 0, flyer: 0, puffer: 0, piranha: 0, dolphin: 0, blob: 0, octo: 0, eel: 0, cham: 0, snake: 0, liz: 0, dragon: 0, egorka: 0, bayan: 0, unbox: 0, mc: 0, candy: 0, hamster: 0, pickle: 0, toast: 0, donut: 0, cloud: 0, pelmen: 0 } };
+try {
+  const d = JSON.parse(localStorage.getItem('rp5-save') || '{}');
+  SAVE.finished = !!d.finished; SAVE.finalDone = !!d.finalDone; SAVE.chamSeen = !!d.chamSeen; SAVE.lizDone = !!d.lizDone;
+  FISH_ORDER.concat(LIZ_ORDER, MEME_ORDER, YT_ORDER).forEach(id => { SAVE.freed[id] = !!(d.freed && d.freed[id]); }); SAVE.memeDone = !!d.memeDone; SAVE.ytDone = !!d.ytDone;
+} catch (e) { }
+function persist() { try { localStorage.setItem('rp5-save', JSON.stringify(SAVE)); } catch (e) { } }
+let AC = null;
+function blip(f, d, type, v) {
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(v || 0.07, AC.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + d);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + d);
+  } catch (e) { }
+}
+let toastTimer = 0;
+function toast(msg, ms) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms || 2600);
+}
+
+/* ---------- particles, ripple, shadow ---------- */
+const PN = 110, parts = [];
+const partGeo = new THREE.IcosahedronGeometry(1, 0);
+for (let i = 0; i < PN; i++) {
+  const m = new THREE.Mesh(partGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
+  m.visible = false; scene.add(m); parts.push({ m, life: 0, max: 1, vx: 0, vy: 0, vz: 0, g: 0, s: 0.1 });
+}
+let pi = 0;
+function emit(x, y, z, vx, vy, vz, life, color, size, g) {
+  const p = parts[pi++ % PN]; p.m.position.set(x, y, z); p.vx = vx; p.vy = vy; p.vz = vz; p.life = p.max = life; p.s = size; p.g = g;
+  p.m.material.color.setHex(color); p.m.visible = true; p.m.scale.setScalar(size);
+}
+function splash(x, z, n) {
+  for (let i = 0; i < (n || 16); i++) { const a = rnd(0, TAU), s = rnd(1, 4); emit(x, 0.1, z, Math.cos(a) * s, rnd(3, 7), Math.sin(a) * s, rnd(0.5, 0.9), 0xe8fbff, rnd(0.07, 0.15), 16); }
+  blip(260, 0.12, 'triangle');
+}
+function burst(x, y, z, color, n) {
+  for (let i = 0; i < n; i++) { const a = rnd(0, TAU), b = rnd(-1, 1), s = rnd(2, 6); emit(x, y, z, Math.cos(a) * s, b * s + 2, Math.sin(a) * s, rnd(0.5, 1), color, rnd(0.08, 0.2), 6); }
+}
+function updateParts(dt) {
+  for (const p of parts) {
+    if (p.life <= 0) continue;
+    p.life -= dt;
+    if (p.life <= 0) { p.m.visible = false; continue; }
+    p.vy -= p.g * dt; p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+    const k = p.life / p.max; p.m.material.opacity = Math.min(1, k * 2); p.m.scale.setScalar(p.s * (0.5 + k));
+  }
+}
+const ripple = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }));
+scene.add(ripple);
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
+scene.add(shadow);
+
+/* ---------- state ---------- */
+let mode = 'menu', sel = 'gold';
+let P = null, fishObj = null, lives = 3, time = 0, shake = 0, animT = 0, wonFinal = false;
+const inp = { x: 0, z: 0 }, keys = {};
+const lookT = new THREE.Vector3();
+
+/* the round aquarium the fish starts in */
+const bowl = new THREE.Group(), bowlGlass = new THREE.Group();
+{
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(1.25, 28, 20), new THREE.MeshPhongMaterial({ color: 0xcfefff, transparent: true, opacity: 0.2, shininess: 120, specular: 0xffffff, depthWrite: false }));
+  const waterIn = new THREE.Mesh(new THREE.SphereGeometry(1.15, 24, 16), new THREE.MeshBasicMaterial({ color: 0x63c6ee, transparent: true, opacity: 0.3, depthWrite: false }));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.07, 8, 28), lamb(0xffffff)); rim.rotation.x = Math.PI / 2; rim.position.y = 1.05;
+  bowlGlass.add(glass, rim);
+  const dots = [0xff6b5a, 0xffc94a, 0x6fd0ee, 0x9be07a, 0xe58cff, 0xffffff, 0xff9a3c, 0x4f9de0];
+  dots.forEach((c, i) => { const y = 1 - (i / 7) * 2, r = Math.sqrt(1 - y * y), th = i * 2.4; const d = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: c })); d.position.set(Math.cos(th) * r * 1.26, y * 1.26, Math.sin(th) * r * 1.26); bowlGlass.add(d); });
+  bowl.add(waterIn, bowlGlass); bowl.visible = false; scene.add(bowl);
+}
+function newPlayer(type) {
+  const p = LVL.pools[0], sp = LVL.spawn || { x: p.x, z: p.z }, inB = !!LVL.bld;
+  return { type, x: sp.x, z: sp.z, y: inB ? LVL.floorY + platTop(sp.x, sp.z) + 1.25 : (LVL.noWater ? H(sp.x, sp.z) + 0.3 : -0.5), vx: 0, vz: 0, vy: 0, rot: 0, air: false, fly: false, flyT: 0, infl: false, inflV: 0, slime: false, slimeT: 0, slimeV: 0, camo: false, camoT: 0, camoV: 0, sq: 0, wet: 1, cd: 0, cdMax: 1, lunge: 0, inv: 1.2, t: 0, onLand: inB || !!LVL.noWater, inWater: !inB && !LVL.noWater, spread: 0, safe: { x: sp.x, z: sp.z }, bowl: inB, maxY: 0, safeT: 0, hintFly: false };
+}
+function setFish(type) {
+  if (fishObj) { scene.remove(fishObj.root); disposeGroup(fishObj.root); }
+  fishObj = makeFish(type); fishObj.root.scale.setScalar(0.55); scene.add(fishObj.root);
+  P.type = type; P.infl = false; P.inflV = 0; P.slime = false; P.slimeT = 0; P.slimeV = 0; P.camo = false; P.camoT = 0; P.camoV = 0; P.fly = false; P.flyT = 0; P.cd = 0;
+  setupAbility();
+}
+function setupAbility() {
+  const S = SPEC[P.type], b = $('abil');
+  if (!S.ab || P.bowl) { b.hidden = true; return; }
+  b.hidden = false; $('abilSvg').innerHTML = ICONS[S.icon]; $('abilName').textContent = S.ab;
+}
+const groundY = (x, z) => Math.max(H(x, z) + (P && P.bowl ? 1.25 : 0.3), -0.5);
+
+/* ---------- dolphin aiming: hold the button, steer with the stick, release to leap 1-5 m ---------- */
+const AIM_MIN = 5, AIM_MAX = 26;   // 5 units = 1 m
+let aim = null, aimPid = -1;
+const aimMat = new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.85, depthTest: false });
+const aimGroup = new THREE.Group(); aimGroup.visible = false; scene.add(aimGroup);
+const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.15, 28).rotateX(-Math.PI / 2), aimMat); aimRing.renderOrder = 20; aimGroup.add(aimRing);
+const aimDots = [];
+for (let i = 0; i < 14; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), aimMat); d.renderOrder = 20; aimGroup.add(d); aimDots.push(d); }
+const aimDist = t => AIM_MIN + (AIM_MAX - AIM_MIN) * clamp(t / 1.2, 0, 1);
+function aimDir() {
+  const fx = inp.x + ((keys.ArrowUp || keys.KeyW) ? 1 : 0) - ((keys.ArrowDown || keys.KeyS) ? 1 : 0), fz = inp.z + ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+  const m = Math.hypot(fx, fz); return m > 0.25 ? [fx / m, fz / m] : heading();
+}
+function aimStart() {
+  if (mode !== 'play' || !P || P.type !== 'dolphin' || P.bowl || P.cd > 0 || P.air || P.fly || aim) return;
+  aim = { t: 0 };
+  if (!P.hintAim) { P.hintAim = true; toast('Держи кнопку: чем дольше, тем дальше прыжок (от 1 до 5 м). Джойстик задаёт куда. Отпусти — прыжок.', 4200); }
+}
+function aimRelease() {
+  if (!aim) return; const D = aimDist(aim.t), d = aimDir(); aim = null; aimGroup.visible = false;
+  if (mode === 'play' && P && !P.air && P.cd <= 0) dolphinJump(D, d);
+}
+function dolphinJump(D, dir) {
+  const vy = lerp(8, 15, (D - AIM_MIN) / (AIM_MAX - AIM_MIN)), T = 2 * vy / 24, v = D / T;
+  P.air = true; P.vy = vy; P.vx = dir[0] * v; P.vz = dir[1] * v; P.cd = 0.8; P.cdMax = 0.8; P.maxY = P.y; P.aimed = true;
+  if (P.inWater) splash(P.x, P.z, 18); blip(380, 0.2, 'triangle');
+}
+function aimUpdate(dt) {
+  if (!aim) { aimGroup.visible = false; return; }
+  if (mode !== 'play' || P.type !== 'dolphin' || P.bowl || P.air || P.fly) { aim = null; aimGroup.visible = false; return; }
+  aim.t += dt;
+  const D = aimDist(aim.t), d = aimDir(), vy = lerp(8, 15, (D - AIM_MIN) / (AIM_MAX - AIM_MIN)), T = 2 * vy / 24;
+  const tx = P.x + d[0] * D, tz = P.z + d[1] * D;
+  aimGroup.visible = true; aimRing.position.set(tx, Math.max(H(tx, tz), 0) + 0.2, tz);
+  const k = 1 + Math.sin(time * 10) * 0.08; aimRing.scale.set(k, 1, k);
+  aimDots.forEach((dt_, i) => { const s = (i + 1) / (aimDots.length + 1); dt_.position.set(P.x + d[0] * D * s, P.y + 0.4 + vy * T * s - 12 * (T * s) * (T * s), P.z + d[1] * D * s); });
+}
+
+/* ---------- abilities ---------- */
+function heading() { return [Math.cos(P.rot), -Math.sin(P.rot)]; }
+const STORY_A = ['Однажды кот', 'Один дедушка', 'Мой сосед', 'Говорящий чайник', 'Космонавт', 'Бабушка с самоваром', 'Дракон-пенсионер', 'Директор цирка'];
+const STORY_B = ['пошёл в магазин за', 'нашёл на балконе', 'проспорил соседу', 'учил разговаривать', 'пытался продать', 'перепутал с', 'спрятал в холодильнике', 'выиграл в лотерею'];
+const STORY_C = ['мешок картошки', 'говорящий носок', 'огромный арбуз', 'гитару из макарон', 'тайное печенье', 'чемодан без ручки', 'дрессированную муху', 'танцующий пылесос'];
+const STORY_D = ['и все ахнули!', 'а потом как засмеётся!', 'и до сих пор смеётся.', 'вот это поворот!', 'и это ещё не конец!', 'а соседи всё слышали.'];
+function storyLine() { const r = a => a[Math.floor(Math.random() * a.length)]; return '«' + r(STORY_A) + ' ' + r(STORY_B) + ' ' + r(STORY_C) + ', ' + r(STORY_D) + '»'; }
+function useAbility() {
+  if (mode !== 'play' || !P || P.bowl) return;
+  const t = SPEC[P.type].as || P.type;
+  if (t === 'gold') {
+    if (P.cd > 0 || P.fly || P.air) return;
+    const hd = heading(); P.air = true; P.vy = SPEC[P.type].meme ? 11.2 : 8.8; P.vx = hd[0] * 12; P.vz = hd[1] * 12; P.cd = 0.5; P.cdMax = 0.5;
+    if (P.inWater) splash(P.x, P.z, 10); blip(520, 0.14);
+  } else if (t === 'dolphin') {
+    if (P.cd > 0 || P.fly || P.air) return;
+    dolphinJump(AIM_MAX, heading());
+  } else if (t === 'blob') {
+    if (P.slime) { P.slime = false; P.cd = 1.2; P.cdMax = 1.2; blip(220, 0.12, 'sine'); }
+    else if (P.cd <= 0 && !P.air) { P.slime = true; P.slimeT = 8; P.cdMax = 1.2; blip(160, 0.22, 'sine'); burst(P.x, P.y + 0.3, P.z, 0x9be05a, 14); if (!P.hintSlime) { P.hintSlime = true; toast('Ты сопля! Ползи по суше 8 секунд. Птицы и охрана тебя не замечают.', 3600); } }
+  } else if (t === 'story') {
+    if (P.cd > 0) return;
+    P.storyT = 16; P.storyLine = 0; P.cd = 32; P.cdMax = 32; blip(520, 0.12, 'triangle', 0.06); blip(700, 0.16, 'triangle', 0.06); toast(storyLine(), 3800);
+  } else if (t === 'blink') {
+    if (P.cd > 0) return;
+    const hd = heading(); let nx = P.x, nz = P.z;
+    for (let s = 1; s <= 9; s++) { const tx = P.x + hd[0] * s, tz = P.z + hd[1] * s; if (H(tx, tz) < -0.3 || LVL.walls.some(w => !w.broken && Math.abs(tx - w.x) < 0.9 && P.y < 3.05) || Math.abs(tz) > 16) break; nx = tx; nz = tz; }
+    if (nx === P.x && nz === P.z) { toast('Впереди нельзя телепортироваться', 1500); return; }
+    burst(P.x, P.y + 0.6, P.z, 0x6aff9a, 18); P.x = nx; P.z = nz; P.y = Math.max(P.y, H(nx, nz) + 0.3); P.vx = P.vz = 0; P.cd = 4; P.cdMax = 4; P.inv = Math.max(P.inv, 0.6); blip(900, 0.1, 'sine', 0.07); blip(1300, 0.12, 'sine', 0.06); burst(P.x, P.y + 0.6, P.z, 0x6aff9a, 18);
+  } else if (t === 'bribe') {
+    if (P.cd > 0) return;
+    P.cd = 5; P.cdMax = 5; blip(620, 0.12, 'triangle', 0.07); blip(820, 0.14, 'triangle', 0.06);
+    const sn = [0xf2c230, 0xe0473a, 0xffffff, 0xc8863a]; for (let i = 0; i < 16; i++) emit(P.x, P.y + 0.9, P.z, Math.cos(P.rot) * rnd(2, 6) + rnd(-1, 1), rnd(2, 6), -Math.sin(P.rot) * rnd(2, 6) + rnd(-1, 1), 0.9, sn[i % 4], rnd(0.12, 0.22), 10);
+    let n = 0; for (const h of LVL.herons) if (Math.hypot(h.x - P.x, h.z - P.z) < 14) { h.stun = 6; h.eat = true; if (h.state === 'chase') h.state = 'return'; n++; }
+    toast(n ? 'Вкусняшки! Жуют: ' + n + ' на 6 секунд. Проходи мимо!' : 'Рядом никого. Угощение пока не нужно.', 2200);
+  } else if (t === 'eel') {
+    if (P.cd > 0) return;
+    P.cd = 3; P.cdMax = 3; blip(900, 0.25, 'sawtooth', 0.08); blip(450, 0.2, 'square', 0.06); shake = 0.15;
+    for (let i = 0; i < 26; i++) { const a = rnd(0, TAU), v = rnd(5, 10); emit(P.x, P.y + 0.5, P.z, Math.cos(a) * v, rnd(0, 3), Math.sin(a) * v, rnd(0.3, 0.6), i % 2 ? 0xfff27a : 0x7df0ff, rnd(0.1, 0.22), 0); }
+    let n = 0; for (const h of LVL.herons) if (Math.hypot(h.x - P.x, h.z - P.z) < 11) { h.stun = 6; h.eat = false; if (h.state === 'chase') h.state = 'return'; n++; }
+    if (n) toast('Разряд! Замерло: ' + n, 1800);
+  } else if (t === 'liz') {
+    if (P.cd > 0) return;
+    P.dash = 1.5; P.cd = 3.5; P.cdMax = 3.5; blip(520, 0.18, 'sawtooth', 0.07); burst(P.x, P.y + 0.2, P.z, 0xd8c8a0, 12);
+  } else if (t === 'octo' || t === 'cham') {
+    if (P.camo) { P.camo = false; P.cd = LVL.museum ? 0 : 1; P.cdMax = 1; blip(240, 0.1, 'sine'); }
+    else if (P.cd <= 0) { P.camo = true; P.camoT = LVL.museum ? 9999 : 10; P.cdMax = 1; blip(300, 0.18, 'sine'); burst(P.x, P.y + 0.4, P.z, 0x5ad05a, 14); if (!P.hintCamo) { P.hintCamo = true; toast('Камуфляж: птицы и охрана тебя не видят 10 секунд на суше.', 3600); } }
+  } else if (t === 'piranha' || t === 'snake') {
+    if (P.cd > 0) return;
+    P.lunge = 0.42; P.cd = 0.9; P.cdMax = 0.9; blip(150, 0.16, 'sawtooth');
+  } else if (t === 'puffer') {
+    P.infl = !P.infl; blip(P.infl ? 300 : 200, 0.15);
+  } else if (t === 'flyer' || t === 'dragon') {
+    if (P.fly) { P.fly = false; P.flyT = 0; P.air = true; P.vy = 0; P.cd = 1; P.cdMax = 1; }
+    else if (P.cd <= 0 && !P.air) { P.fly = true; P.flyT = 6; P.cdMax = 1.5; if (P.inWater) splash(P.x, P.z, 12); blip(420, 0.14, 'triangle'); if (!P.hintFly) { P.hintFly = true; toast('Лети 6 секунд. Нажми кнопку ещё раз, чтобы снизиться.'); } }
+  }
+}
+function bite() {
+  for (const w of LVL.walls) {
+    if (w.broken) continue;
+    if (P.x < w.x + 0.5 && w.x - P.x < 3.6 && P.y < 2.8) {
+      w.broken = true; levelGroup.remove(w.meshes);
+      for (let i = 0; i < 28; i++) emit(w.x + rnd(-1, 1), rnd(0, 2), P.z + rnd(-4, 4), rnd(-3, 5), rnd(2, 6), rnd(-3, 3), rnd(0.8, 1.4), i % 2 ? 0x8a5d33 : 0xb98a4e, rnd(0.12, 0.3), 14);
+      blip(110, 0.3, 'square', 0.09); toast('Плотина прогрызена'); shake = 0.25;
+    }
+  }
+}
+
+/* ---------- damage ---------- */
+function respawn() {
+  P.x = P.safe.x; P.z = P.safe.z; P.vx = P.vz = P.vy = 0; P.air = false; P.fly = false; P.flyT = 0; P.infl = false; P.slime = false; P.slimeT = 0; P.camo = false; P.camoT = 0; P.dash = 0; P.wet = 1; P.inv = 2; P.lunge = 0; P.maxY = 0; P.safeT = 0;
+  P.y = H(P.x, P.z) < -0.3 ? -0.5 : groundY(P.x, P.z);
+}
+const HURT_TEXT = {
+  dry: ['Рыбка высохла на суше. Возвращайся в воду вовремя.', 'Рыбка высохла. Возвращаемся к воде.'],
+  bird: ['Цапля поймала рыбку.', 'Цапля поймала рыбку.'],
+  guard: ['Охранник вынес рыбку. Беги пока он далеко или катись.', 'Охранник вынес рыбку.'],
+  bowl: ['Аквариум разбился о твёрдый пол. Целься в мягкое: матрас, диван, ковёр.', 'Аквариум разбился о твёрдый пол. Целься в мягкое.']
+};
+function hurt(why) {
+  if (P.inv > 0 || mode !== 'play') return;
+  lives--; shake = 0.4; burst(P.x, P.y + 0.3, P.z, why === 'dry' ? 0x9fdcff : (why === 'bowl' ? 0xcfefff : 0xff5a4a), why === 'bowl' ? 26 : 14); blip(why === 'bowl' ? 700 : 110, 0.3, why === 'bowl' ? 'square' : 'sawtooth', 0.09);
+  let t = HURT_TEXT[why] || HURT_TEXT.bird;
+  if (why === 'bowl' && SPEC[P.type].liz) t = ['Террариум разбился о твёрдый пол. Целься в мягкое.', 'Террариум разбился о твёрдый пол. Целься в мягкое.'];
+  if (lives <= 0) { gameOver(t[0]); return; }
+  deathMenu(t[0]);
+}
+function restartLevel() { if (CUR === 'final') startFinalLevel(true); else if (CUR === 'lfinal') startLizFinal(true); else startLevel(CUR, LI); }
+function deathMenu(msg) {
+  const cp = LVL.cp;
+  endScreen('Рыбка пострадала', msg + ' Осталось сердец: ' + lives + '.', cp ? 'Возродиться на контрольной точке' : 'Возродиться рядом', () => {
+    if (cp) { P.safe.x = cp.x; P.safe.z = cp.z; }
+    respawn(); mode = 'play'; showScreen(null); playUI(true); snapCamera();
+  }, 'Начать уровень заново', () => restartLevel());
+}
+function releaseBowl() {
+  P.bowl = false; bowl.visible = false; burst(P.x, P.y, P.z, 0xcfefff, 22); splash(P.x, P.z, 14);
+  setupAbility(); toast((LVL.noWater ? 'Террариум остался позади. Беги к джунглям. ' : 'Аквариум остался на берегу. Дальше плыви сама. ') + HINTS[P.type], 5200);
+}
+
+/* ---------- player update ---------- */
+function updatePlayer(dt) {
+  const sp = SPEC[P.type], f = fishObj;
+  if (P.storyT > 0) {
+    P.storyT -= dt; P.storyLine = (P.storyLine || 0) + dt; if (P.storyLine > 4.2 && P.storyT > 1) { P.storyLine = 0; toast(storyLine(), 3800); }
+    for (const h of LVL.herons) if (Math.hypot(h.x - P.x, h.z - P.z) < 15) { h.stun = Math.max(h.stun || 0, 0.4); h.eat = false; if (h.state === 'chase') h.state = 'return'; if (Math.random() < dt * 4) emit(h.x, (h.y || 0) + (h.kind === 'guard' ? 3.4 : 1.8), h.z, rnd(-1, 1), rnd(1, 3), rnd(-1, 1), 0.7, 0xffe14a, 0.14, 4); }
+    if (P.storyT <= 0) toast('Байка закончилась. Слушатели хохочут.', 2200);
+  }
+  if (P.camo && !P.inWater && !LVL.museum) { P.camoT -= dt; if (P.camoT <= 0) { P.camo = false; P.cd = 1.5; P.cdMax = 1.5; toast('Камуфляж спал', 1800); } }
+  if (P.slime && !P.inWater) { P.slimeT -= dt; if (P.slimeT <= 0) { P.slime = false; P.cd = 2; P.cdMax = 2; toast('Сопля высохла. Скорее в воду!', 2200); } }
+  P.t += dt; P.cd = Math.max(0, P.cd - dt); P.inv = Math.max(0, P.inv - dt); P.lunge = Math.max(0, P.lunge - dt); P.dash = Math.max(0, (P.dash || 0) - dt);
+  let fx = inp.x + ((keys.ArrowUp || keys.KeyW) ? 1 : 0) - ((keys.ArrowDown || keys.KeyS) ? 1 : 0);
+  let fz = inp.z + ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+  let m = Math.hypot(fx, fz); if (m > 1) { fx /= m; fz /= m; m = 1; }
+  const inflated = P.type === 'puffer' && P.infl && !P.bowl;
+  const wasWater = P.inWater && !P.air && !P.fly;
+  const waterHere = H(P.x, P.z) < -0.3;
+  if (P.fly) { P.flyT -= dt; if (P.flyT <= 0) { P.fly = false; P.air = true; P.vy = 0; P.maxY = P.y; P.cd = 1.5; P.cdMax = 1.5; } }
+  if (P.lunge > 0) bite();
+  let dx = fx, dz = fz;
+  if ((P.lunge > 0 || P.dash > 0) && m < 0.1) { const h = heading(); dx = h[0]; dz = h[1]; }
+  if (P.lunge > 0 || P.dash > 0) { const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
+  if (!P.air) P.aimed = false;
+  if (P.air && !P.fly) { if (!P.aimed) { P.vx += dx * 5 * dt; P.vz += dz * 5 * dt; } }
+  else {
+    let tgt = P.bowl ? 6.5 : (P.fly ? 11 : (waterHere ? sp.swim * (inflated ? 0.55 : 1) : (inflated ? 9 : (P.slime ? 4.2 : sp.land))));
+    if (P.lunge > 0) tgt = 16;
+    if (P.dash > 0) tgt = 15;
+    const k = 1 - Math.exp(-(waterHere || P.fly ? 7 : 9) * dt);
+    P.vx += (dx * tgt - P.vx) * k; P.vz += (dz * tgt - P.vz) * k;
+  }
+  const zl = (roomAt(P.x) || roomAt(P.x + P.vx * dt)) ? 13.4 : LVL.corr - 0.4;
+  let nx = P.x + P.vx * dt, nz = clamp(P.z + P.vz * dt, -zl, zl);
+  nx = Math.max(nx, LVL.minX);
+  for (const r of LVL.rooms) {
+    const ex = r.x1 - 0.9;
+    if (P.x <= ex && nx > ex && Math.abs(nz) > (r.doorW || 2.8)) { nx = ex; P.vx = Math.min(0, P.vx); }
+  }
+  if (!P.air && !P.fly) {   // steep rises (furniture) stop the fish
+    const gc = H(P.x, P.z);
+    if (H(nx, P.z) - gc > 0.8) { nx = P.x; P.vx = 0; }
+    if (H(P.x, nz) - gc > 0.8) { nz = P.z; P.vz = 0; }
+  }
+  P.sq = 0;
+  for (const s of LVL.slits) {
+    const lo = s.x - 0.6, hi = s.x + 0.6, inBand = nx > lo && nx < hi, wasIn = P.x > lo && P.x < hi;
+    if (inBand || wasIn) {
+      if (!wasIn && Math.abs(nz - s.z) > s.hw) { nx = P.x <= lo ? lo : hi; P.vx = 0; }
+      else { nz = clamp(nz, s.z - s.hw, s.z + s.hw); P.sq = 1; }
+    }
+  }
+  for (const w of LVL.walls) {
+    if (w.broken || P.y >= 3.05) continue;
+    const lo = w.x - 0.8, hi = w.x + 0.8;
+    if (P.x <= lo && nx > lo) { nx = lo; P.vx = Math.min(0, P.vx); }
+    else if (P.x >= hi && nx < hi) { nx = hi; P.vx = Math.max(0, P.vx); }
+    else if (P.x > lo && P.x < hi) { nx = P.x < w.x ? lo : hi; }
+  }
+  const gY = groundY(nx, nz);
+  let landed = false, drop = 0;
+  if (P.fly) { const ty = Math.max(H(nx, nz), 0) + 3.4; P.y += (ty - P.y) * (1 - Math.exp(-4 * dt)); P.vy = 0; }
+  else if (P.air) {
+    P.vy -= 24 * dt; P.y += P.vy * dt; P.maxY = Math.max(P.maxY, P.y);
+    if (P.y <= gY && P.vy < 0) { drop = P.maxY - gY; P.y = gY; P.air = false; P.vy = 0; landed = true; }
+  } else if (gY < P.y - 0.55 && H(nx, nz) >= -0.3) { P.air = true; P.vy = 0; P.maxY = P.y; }
+  else { P.y += (gY + (inflated && H(nx, nz) < -0.3 ? 0.3 : 0) - P.y) * (1 - Math.exp(-12 * dt)); }
+  P.x = nx; P.z = nz;
+  const h2 = H(P.x, P.z), grounded = !P.air && !P.fly;
+  P.inWater = grounded && h2 < -0.3; P.onLand = grounded && h2 >= -0.3;
+  if (landed) {
+    P.safeT = 0;
+    if (h2 < -0.3) splash(P.x, P.z, 14);
+    else if (P.bowl && drop > 2.6) {
+      if (P.type === 'puffer') { burst(P.x, P.y - 1, P.z, 0xffffff, 10); blip(180, 0.15, 'triangle'); }
+      else if (softAt(P.x, P.z)) { burst(P.x, P.y - 1, P.z, 0xffffff, 12); blip(240, 0.14, 'sine'); }
+      else { hurt('bowl'); return; }
+    }
+  }
+  if (P.bowl && (P.inWater || (LVL.noWater && LVL.bld && P.x > LVL.bld.x1 + 6))) releaseBowl();
+  if (LVL.noWater && !P.bowl && grounded && !P.air) { P.lizT = (P.lizT || 0) + dt; if (P.lizT > 1.5) { P.lizT = 0; P.safe.x = P.x; P.safe.z = P.z; } }
+  if (grounded && wasWater !== P.inWater && Math.hypot(P.vx, P.vz) > 1 && !P.bowl) splash(P.x, P.z, 8);
+  if (P.inWater) { P.wet = Math.min(1, P.wet + dt / 1.2); if (h2 < -1.0) { P.safe.x = P.x; P.safe.z = P.z; } }
+  else if (!P.fly && !P.bowl && !P.slime && !LVL.noWater && h2 >= -0.3) {
+    P.wet -= dt / (inflated ? sp.dryInfl : sp.dry);
+    if (P.wet <= 0) { P.wet = 0; hurt('dry'); return; }
+  }
+  if (P.bowl && grounded) {
+    P.safeT += dt;
+    if (P.safeT > 0.6) { const sx = Math.max(P.x - 1.4, 1.6); if (Math.abs(H(sx, P.z) - h2) < 0.2) { P.safe.x = sx; P.safe.z = P.z; } }
+  }
+  const speed = Math.hypot(P.vx, P.vz);
+  if (speed > 0.4) P.rot += angDiff(P.rot, Math.atan2(-P.vz, P.vx)) * (1 - Math.exp(-10 * dt));
+
+  // visuals
+  P.inflV += ((inflated ? 1 : 0) - P.inflV) * (1 - Math.exp(-8 * dt));
+  if (P.type === 'puffer') f.setInfl(P.inflV);
+  P.spread += ((P.fly ? 1 : (P.air && !P.bowl ? 0.35 : 0)) - P.spread) * (1 - Math.exp(-9 * dt));
+  if (f.setSpread) f.setSpread(P.spread, P.fly ? Math.sin(P.t * 15) * 0.6 : 0);
+  const rolling = inflated && P.onLand;
+  P.slimeV += ((P.slime ? 1 : 0) - P.slimeV) * (1 - Math.exp(-8 * dt));
+  if (P.type === 'blob') {
+    const v = P.slimeV; f.body.material.color.setRGB(1 - 0.5 * v, 1 - 0.05 * v, 1 - 0.65 * v); f.body.material.transparent = true; f.body.material.opacity = 1 - 0.15 * v;
+    f.root.scale.set(0.55 * (1 + 0.3 * v), 0.55 * (1 - 0.4 * v), 0.55 * (1 + 0.3 * v));
+    if (P.slime && speed > 0.5 && !P.inWater && Math.random() < dt * 12) emit(P.x + rnd(-0.3, 0.3), P.y - 0.1, P.z + rnd(-0.3, 0.3), 0, 0.3, 0, 0.9, 0x9be05a, 0.12, 0);
+  }
+  if (f.setCamo) {
+    P.camoV += ((P.camo ? 1 : 0) - P.camoV) * (1 - Math.exp(-6 * dt)); if (f.camoCol) f.camoCol.setHex(P.camoCol || SPEC[P.type].camoCol || 0x4caf50); f.setCamo(P.camoV);
+    P.sqV = (P.sqV || 0) + ((P.sq ? 1 : 0) - (P.sqV || 0)) * (1 - Math.exp(-12 * dt));
+    if (P.type === 'octo') f.root.scale.set(0.55, 0.55 * (1 + 0.25 * P.sqV), 0.55 * (1 - 0.6 * P.sqV));
+  }
+  const lying = P.onLand && !rolling && !P.bowl && !P.slime && P.type !== 'octo' && !SPEC[P.type].liz;
+  const wagS = lying ? 16 : 6 + speed * 1.3 + (P.lunge > 0 ? 14 : 0), amp = lying ? 0.75 : 0.38;
+  f.wag(Math.sin(P.t * wagS) * amp);
+  f.inner.rotation.y = Math.sin(P.t * wagS) * 0.08 * amp * 2;
+  f.pecL.rotation.x = -0.9 + Math.sin(P.t * 5) * 0.25; f.pecR.rotation.x = 0.9 - Math.sin(P.t * 5) * 0.25;
+  f.inner.rotation.x += ((lying ? 1.45 : (P.fly ? Math.sin(P.t * 1.5) * 0.12 : 0)) - f.inner.rotation.x) * (1 - Math.exp(-10 * dt));
+  if (rolling) f.inner.rotation.z -= speed * dt / 0.8;
+  else {
+    const tgt = P.air && !P.fly && !P.bowl ? clamp(P.vy * 0.05, -0.7, 0.7) : 0;
+    const cur = f.inner.rotation.z, k = 1 - Math.exp(-10 * dt), tw = Math.round(cur / TAU) * TAU;
+    f.inner.rotation.z = cur + ((tw + tgt) - cur) * k;
+  }
+  const hop = lying ? Math.abs(Math.sin(P.t * 8)) * 0.3 * clamp(speed / 2, 0.25, 1) : 0;
+  f.root.position.set(P.x, P.y + hop + (rolling ? 0.35 : 0) - (P.bowl ? 0.2 : 0), P.z);
+  f.root.rotation.y = P.rot;
+  f.root.visible = P.inv > 0 ? Math.sin(time * 40) > -0.3 : true;
+  bowl.visible = P.bowl; 
+  if (P.bowl) {
+    bowl.position.set(P.x, P.y, P.z);
+    if (speed > 0.05) bowlGlass.rotateOnWorldAxis(new THREE.Vector3(P.vz / speed, 0, -P.vx / speed), speed * dt / 1.25);
+  }
+  // ripple and shadow
+  const surf = P.inWater || (P.air && P.y < 0.3 && !P.bowl);
+  ripple.visible = surf; ripple.position.set(P.x, 0.05, P.z);
+  const rs = 0.9 + (time * 1.4 % 1) * 1.2; ripple.scale.set(rs, 1, rs); ripple.material.opacity = 0.5 * (1 - (time * 1.4 % 1));
+  const under = Math.max(H(P.x, P.z), 0);
+  shadow.visible = !P.inWater; shadow.position.set(P.x, under + 0.06, P.z);
+  shadow.scale.setScalar(clamp(1 - (P.y - under) * 0.1, 0.4, 1) * (P.inflV > 0.5 ? 1.5 : 1) * (P.bowl ? 1.7 : 1));
+  if (P.type === 'gold' && Math.random() < dt * 14) emit(P.x + rnd(-0.5, 0.5), P.y + rnd(0, 0.8), P.z + rnd(-0.5, 0.5), 0, 0.6, 0, 0.8, 0xfff1a0, 0.09, 0);
+}
+
+/* ---------- herons, gold fish ---------- */
+function updateHerons(dt) {
+  for (const h of LVL.herons) {
+    h.t += dt; h.cd = Math.max(0, h.cd - dt);
+    if (h.stun > 0) { h.stun -= dt; if (h.eat && Math.random() < dt * 9) emit(h.x + rnd(-0.4, 0.4), (h.y || 0) + (h.kind === 'guard' ? 3.2 : 1.6), h.z + rnd(-0.4, 0.4), rnd(-1, 1), rnd(1, 3), rnd(-1, 1), 0.6, [0xf2c230, 0xe0473a, 0xffffff][Math.floor(rnd(0, 3))], 0.1, 6); if (h.kind === 'guard') foldGuard(h.m, false, h.t); else foldHeron(h.m, 0, h.t); continue; }
+    if (h.kind === 'guard') { updateGuard(h, dt); continue; }
+    const inflRoll = P.type === 'puffer' && P.infl && H(P.x, P.z) >= -0.3;
+    const exposed = !P.bowl && !P.fly && !P.slime && !camoHides() && H(P.x, P.z) >= -0.3 && !inflRoll;
+    const d = Math.hypot(P.x - h.x, P.z - h.z);
+    let flying = false;
+    if (h.state === 'idle') {
+      h.face += angDiff(h.face, Math.atan2(-(P.z - h.z), P.x - h.x)) * (1 - Math.exp(-2 * dt));
+      if (exposed && d < (LVL.noWater ? 11 : 15) && h.cd <= 0) { h.state = 'chase'; h.spd = (P.type === 'piranha' || SPEC[P.type].liz) ? Math.max(1.2, d / 10) : 8.5; blip(700, 0.18, 'square', 0.04); }
+    } else if (h.state === 'chase') {
+      flying = true;
+      if (!exposed || d > 26) h.state = 'return';
+      else {
+        const tx = P.x - h.x, ty = P.y + 0.7 - h.y, tz = P.z - h.z, l = Math.hypot(tx, ty, tz) || 1;
+        const cs = h.spd || 8.5; h.x += tx / l * cs * dt; h.y += ty / l * cs * dt; h.z += tz / l * cs * dt;
+        h.face += angDiff(h.face, Math.atan2(-tz, tx)) * (1 - Math.exp(-8 * dt));
+        if (l < 1.5) { h.state = 'return'; h.cd = 4; hurt('bird'); }
+      }
+    }
+    if (h.state === 'return') {
+      flying = true;
+      const tx = h.px - h.x, ty = h.hy - h.y, tz = h.pz - h.z, l = Math.hypot(tx, ty, tz) || 1;
+      if (l < 0.5) { h.state = 'idle'; h.x = h.px; h.z = h.pz; h.y = h.hy; h.cd = Math.max(h.cd, 1.5); flying = false; }
+      else { h.x += tx / l * 7 * dt; h.y += ty / l * 7 * dt; h.z += tz / l * 7 * dt; h.face += angDiff(h.face, Math.atan2(-tz, tx)) * (1 - Math.exp(-6 * dt)); }
+    }
+    h.m.position.set(h.x, h.y + (flying ? Math.sin(h.t * 12) * 0.08 : 0), h.z); h.m.rotation.y = h.face;
+    foldHeron(h.m, flying ? 1 : 0, h.t);
+  }
+}
+const MUSEUM_HINT = 'Музей! Выбери цвет справа: он должен совпасть с цветом зала. Тогда охранник, экскурсовод и туристы тебя не заметят. В конце ищи маленькую трубу.';
+function camoHides() { return P.camo && (!LVL.museum || (P.camoCol || 0) === (hallIdx(P.x) >= 0 ? MUSEUM_COLS[hallIdx(P.x)].col : -1)); }
+function updateGuard(h, dt) {
+  const inflRoll = P.type === 'puffer' && P.infl && H(P.x, P.z) >= -0.3;
+  const exposed = !P.bowl && !P.fly && !P.slime && !camoHides() && H(P.x, P.z) >= -0.3 && !inflRoll;
+  const d = Math.hypot(P.x - h.x, P.z - h.z);
+  let moving = false, tx = h.px, tz = h.pz;
+  if (h.state === 'idle' && exposed && d < 11 && h.cd <= 0) { h.state = 'chase'; blip(300, 0.2, 'square', 0.05); toast(h.role === 'guide' ? 'Экскурсовод заметил ящерку!' : h.role === 'tour' ? 'Турист заметил ящерку!' : (LVL.noWater ? 'Охранник заметил ящерку' : 'Охранник заметил рыбку')); }
+  if (h.state === 'chase') {
+    if (!exposed || d > 22) h.state = 'return'; else { tx = P.x; tz = P.z; }
+  }
+  if (h.state === 'idle') { h.face += angDiff(h.face, Math.atan2(-(P.z - h.z), P.x - h.x)) * (1 - Math.exp(-2 * dt)); }
+  else {
+    const dx = tx - h.x, dz = tz - h.z, l = Math.hypot(dx, dz);
+    if (h.state === 'return' && l < 0.4) { h.state = 'idle'; h.cd = Math.max(h.cd, 1.5); }
+    else if (l > 0.01) {
+      const sp = h.state === 'chase' ? 4.6 : 4, nx = h.x + dx / l * sp * dt, nz = h.z + dz / l * sp * dt;
+      if (H(nx, nz) >= -0.3) { h.x = nx; h.z = nz; moving = true; }
+      h.face += angDiff(h.face, Math.atan2(-dz, dx)) * (1 - Math.exp(-8 * dt));
+    }
+    if (h.state === 'chase' && d < 1.5 && P.y < H(P.x, P.z) + 1.7) { h.state = 'return'; h.cd = 4; hurt('guard'); }
+  }
+  h.y = H(h.x, h.z); h.m.position.set(h.x, h.y, h.z); h.m.rotation.y = h.face; foldGuard(h.m, moving, h.t);
+}
+/* ---------- camera ---------- */
+function camTarget() {
+  const asp = camera.aspect, k = asp < 0.8 ? 1.35 : (asp < 1.2 ? 1.15 : 1);
+  const gy = Math.max(P.y, 0);
+  return [P.x - 10.5 * k, 8.2 * k + (P.fly ? 2.5 : 0) + gy * 0.55, P.z * 0.8, P.x + 4.5, Math.max(0.4, gy * 0.7), P.z * 0.85];
+}
+function snapCamera() { const c = camTarget(); camera.position.set(c[0], c[1], c[2]); lookT.set(c[3], c[4], c[5]); camera.lookAt(lookT); }
+function updateCamera(dt) {
+  const c = camTarget(), k = 1 - Math.exp(-4.5 * dt);
+  camera.position.x += (c[0] - camera.position.x) * k; camera.position.y += (c[1] - camera.position.y) * k; camera.position.z += (c[2] - camera.position.z) * k;
+  lookT.x += (c[3] - lookT.x) * k; lookT.y += (c[4] - lookT.y) * k; lookT.z += (c[5] - lookT.z) * k;
+  camera.lookAt(lookT);
+  if (shake > 0) { camera.position.x += rnd(-0.3, 0.3) * shake * 2; camera.position.y += rnd(-0.3, 0.3) * shake * 2; }
+}
+
+/* ---------- screens and flow ---------- */
+function showScreen(id) { for (const s of ['menu', 'select', 'end', 'pick']) $(s).hidden = s !== id; }
+function playUI(on) {
+  $('hud').hidden = !on; if (!on) { $('colors').hidden = true; $('swap').hidden = true; $('abil').hidden = true; $('wet').classList.remove('on'); $('joy').classList.remove('on'); }
+  else if (P) setupAbility();
+}
+function fishTitle(id) { return SPEC[id].name; }
+function buildSelect() {
+  const grid = $('grid'); grid.innerHTML = '';
+  FISH_ORDER.forEach((id, idx) => {
+    const S = SPEC[id], locked = idx >= SAVE.unlocked, freed = !locked && !!SAVE.freed[id];
+    const card = document.createElement('button');
+    card.className = 'card' + (locked ? ' lock' : '') + (freed ? ' freed' : '') + (sel === id ? ' sel' : ''); card.dataset.id = id;
+    const c = document.createElement('canvas'); c.width = 160; c.height = 110; paintPreview(c, id);
+    const n = document.createElement('b'); n.textContent = (idx + 1) + '. ' + S.name;
+    const d = document.createElement('span');
+    d.textContent = locked ? 'Закрыта. Сначала проведи до океана: ' + SPEC[FISH_ORDER[idx - 1]].name + '.' : (freed ? '✓ Освобождена в океан. Можно пройти снова. ' : '') + S.desc + ' Уровень ' + (SAVE.prog[id] + 1) + ' из 3.';
+    card.append(c, n, d);
+    card.addEventListener('click', () => {
+      if (locked) { toast('Эта рыбка откроется, когда предыдущая доберётся до океана'); return; }
+      sel = id; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+    });
+    grid.append(card);
+  });
+  { const hd = document.createElement('h3'); hd.textContent = 'Я ящерица'; hd.id = 'lizHead'; grid.append(hd);
+    LIZ_ORDER.forEach((id, idx) => {
+      const S = SPEC[id], done = !!SAVE.freed[id], card = document.createElement('button');
+      card.className = 'card' + (done ? ' freed' : '') + (sel === id ? ' sel' : ''); card.dataset.id = id;
+      const c = document.createElement('canvas'); c.width = 160; c.height = 110; paintPreview(c, id);
+      const n = document.createElement('b'); n.textContent = (idx + 1) + '. ' + S.name; const d = document.createElement('span');
+      d.textContent = (done ? '✓ Вернулась в джунгли. ' : '') + S.desc + ' Уровень ' + (SAVE.prog[id] + 1) + ' из 3.';
+      card.append(c, n, d);
+      card.addEventListener('click', () => { sel = id; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === id)); });
+      grid.append(card);
+    });
+  }
+  { const ok = allLizFreed(), card = document.createElement('button');
+    card.className = 'card' + (ok ? '' : ' lock') + (sel === 'lfinal' ? ' sel' : ''); card.dataset.id = 'lfinal';
+    const c = document.createElement('canvas'); c.width = 160; c.height = 110; const x = c.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, 0, 110); gr.addColorStop(0, '#bfe0cc'); gr.addColorStop(1, '#3a7a52'); x.fillStyle = gr; x.fillRect(0, 0, 160, 110);
+    x.strokeStyle = '#2a5a3a'; x.lineWidth = 3; for (let k = 0; k <= 160; k += 40) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k, 110); x.stroke(); }
+    x.fillStyle = '#fff'; x.font = '800 24px Nunito, Arial'; x.textAlign = 'center'; x.fillText('ТЕРРАРИУМ', 80, 62);
+    const n = document.createElement('b'); n.textContent = 'Финал: Большой террариум';
+    const d = document.createElement('span'); d.textContent = ok ? 'Все ящерицы снова в плену. Находи новых друзей каждые 6 метров и меняйся кнопкой.' + (SAVE.lizDone ? ' Пройдено.' : '') : 'Закрыта. Сначала верни в джунгли всех четырёх ящериц.';
+    card.append(c, n, d);
+    card.addEventListener('click', () => { if (!ok) { toast('Сначала верни в джунгли всех ящериц'); return; } sel = 'lfinal'; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === 'lfinal')); });
+    grid.append(card); }
+  { const ok = allFreed(), card = document.createElement('button');
+    card.className = 'card' + (ok ? '' : ' lock') + (sel === 'final' ? ' sel' : ''); card.dataset.id = 'final';
+    const c = document.createElement('canvas'); c.width = 160; c.height = 110; const x = c.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, 0, 110); gr.addColorStop(0, '#2fa6d8'); gr.addColorStop(1, '#06304f'); x.fillStyle = gr; x.fillRect(0, 0, 160, 110);
+    x.strokeStyle = 'rgba(255,233,160,.85)'; x.lineWidth = 1.5; for (let k = -2; k < 10; k++) { x.beginPath(); x.moveTo(k * 20, 0); x.lineTo(k * 20 + 50, 110); x.moveTo(k * 20 + 50, 0); x.lineTo(k * 20, 110); x.stroke(); }
+    x.fillStyle = '#fff'; x.font = '800 26px Nunito, Arial'; x.textAlign = 'center'; x.fillText('ВСЕ ВМЕСТЕ', 80, 62);
+    const n = document.createElement('b'); n.textContent = 'Финал: Большой океанариум';
+    const d = document.createElement('span'); d.textContent = ok ? 'Все восемь рыбок снова в плену. Меняй рыбку на кольцах каждые 5 метров и сбегай вместе.' + (SAVE.finalDone ? ' Пройдено.' : '') : 'Закрыта. Сначала освободи в океан всех рыбок.';
+    card.append(c, n, d);
+    card.addEventListener('click', () => { if (!ok) { toast('Сначала освободи в океан всех рыбок'); return; } sel = 'final'; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === 'final')); });
+    grid.append(card); }
+  { const hd = document.createElement('h3'); hd.textContent = 'Я мем'; hd.id = 'memeHead'; grid.append(hd);
+    MEME_ORDER.forEach((id, idx) => {
+      const S = SPEC[id], done = !!SAVE.freed[id], card = document.createElement('button');
+      card.className = 'card' + (done ? ' freed' : '') + (sel === id ? ' sel' : ''); card.dataset.id = id;
+      const c = document.createElement('canvas'); c.width = 160; c.height = 110; paintPreview(c, id);
+      const n = document.createElement('b'); n.textContent = (idx + 1) + '. ' + S.name; const d = document.createElement('span');
+      d.textContent = (done ? '✓ Добрался до Мемо-лэнда. ' : '') + S.desc + ' Уровень ' + (SAVE.prog[id] + 1) + ' из 3. Цель: Мемо-лэнд!';
+      card.append(c, n, d);
+      card.addEventListener('click', () => { sel = id; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === id)); });
+      grid.append(card);
+    });
+  }
+  { const hd = document.createElement('h3'); hd.textContent = 'Я ютубер'; hd.id = 'ytHead'; grid.append(hd);
+    YT_ORDER.forEach((id, idx) => {
+      const S = SPEC[id], done = !!SAVE.freed[id], card = document.createElement('button');
+      card.className = 'card' + (done ? ' freed' : '') + (sel === id ? ' sel' : ''); card.dataset.id = id;
+      const c = document.createElement('canvas'); c.width = 160; c.height = 110; paintPreview(c, id);
+      const n = document.createElement('b'); n.textContent = (idx + 1) + '. ' + S.name; const d = document.createElement('span');
+      d.textContent = (done ? '✓ Добрался до Ютуб-лэнда. ' : '') + S.desc + ' Уровень ' + (SAVE.prog[id] + 1) + ' из 5. Цель: Ютуб-лэнд!';
+      card.append(c, n, d);
+      card.addEventListener('click', () => { sel = id; grid.querySelectorAll('.card').forEach(el => el.classList.toggle('sel', el.dataset.id === id)); });
+      grid.append(card);
+    });
+  }
+  $('selHint').textContent = 'У каждого героя свои три уровня. Рыбки плывут к океану, ящерицы бегут в джунгли, а мемы в Мемо-лэнд.';
+}
+const previewCache = {};
+function paintPreview(canvas, type) {
+  const w = canvas.width, h = canvas.height, cx = canvas.getContext('2d');
+  if (!renderer) return;
+  try {
+    if (!previewCache[type]) {
+      const sc = new THREE.Scene(); sc.background = new THREE.Color(0x2b86b0);
+      sc.add(new THREE.HemisphereLight(0xffffff, 0x335566, 0.95)); const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(3, 5, 4); sc.add(dl);
+      const fi = makeFish(type); if (type === 'puffer') fi.setInfl(0.45); if (type === 'flyer') fi.setSpread(0.8, 0.3);
+      fi.root.rotation.y = -0.6; sc.add(fi.root);
+      const cam = new THREE.PerspectiveCamera(36, w / h, 0.1, 50); cam.position.set(0.5, 1.5, type === 'flyer' ? 9 : 7.4); cam.lookAt(0, type === 'flyer' ? 0.5 : 0, 0);
+      const rt = new THREE.WebGLRenderTarget(w, h), buf = new Uint8Array(w * h * 4);
+      renderer.setRenderTarget(rt); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 0, 0, w, h, buf); renderer.setRenderTarget(null);
+      rt.dispose(); disposeGroup(fi.root);
+      const img = cx.createImageData(w, h);
+      for (let y = 0; y < h; y++) img.data.set(buf.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
+      previewCache[type] = img;
+    }
+    cx.putImageData(previewCache[type], 0, 0);
+  } catch (e) { cx.fillStyle = '#2b86b0'; cx.fillRect(0, 0, w, h); }
+}
+function showSelect() {
+  if (sel === 'final' && !allFreed()) sel = 'gold';
+  if (sel === 'lfinal' && !allLizFreed()) sel = 'gold';
+  if (FISH_ORDER.indexOf(sel) >= SAVE.unlocked && LIZ_ORDER.indexOf(sel) < 0 && sel !== 'final' && sel !== 'lfinal') { const nf = FISH_ORDER.find((id, i) => i < SAVE.unlocked && !SAVE.freed[id]); sel = nf || FISH_ORDER[SAVE.unlocked - 1]; }
+  buildSelect(); playUI(false); mode = 'select'; showScreen('select');
+}
+function endScreen(title, text, b1, f1, b2, f2) {
+  mode = 'end'; playUI(false);
+  $('endTitle').textContent = title; $('endText').textContent = text;
+  const e1 = $('endBtn'), e2 = $('endBtn2'); e1.textContent = b1; e1.onclick = f1;
+  if (b2) { e2.hidden = false; e2.textContent = b2; e2.onclick = f2; } else e2.hidden = true;
+  showScreen('end');
+}
+const HINTS = {
+  gold: 'Золотая рыбка прыгает. Жми кнопку справа, чтобы перепрыгнуть сушу.',
+  flyer: 'Летучая рыба летит над сушей. Жми кнопку, чтобы взлететь.',
+  puffer: 'Рыба-шар катится по суше, когда раздута. У берега раздуйся: на земле у тебя 10 секунд.',
+  piranha: 'Пиранья прогрызает плотины. Подплыви к плотине и жми «Укус».',
+  eel: 'Угорь бьёт током: жми «Разряд», и охранники и птицы рядом замирают на 6 секунд. Потом быстро проскочи мимо.',
+  cham: 'Хамелеон меняет цвет: птицы и охрана не заметят 10 секунд. Жми кнопку.',
+  snake: 'Змея прогрызает деревянные плотины. Подползи к плотине и жми «Укус».',
+  liz: 'Ящерица делает быстрый рывок. Жми кнопку, чтобы проскочить мимо охраны и птиц.',
+  egorka: 'Егорка телепортируется на 9 метров вперёд. Жми кнопку, чтобы проскочить мимо охраны или плотины. Перезарядка 4 секунды.',
+  bayan: 'Балагур рассказывает охранникам, чайкам и осам смешную историю: они слушают 16 секунд. Перезарядка 16 секунд.',
+  unbox: 'Распаковщик прячется в коробке: охрана и птицы не заметят 10 секунд.',
+  mc: 'MC бьёт басом: охранники и птицы рядом замирают на 6 секунд.',
+  candy: 'Сладкоежка делает сахарный рывок. Жми кнопку, чтобы проскочить мимо охраны и птиц.',
+  hamster: 'Хомяк-дипломат угощает охранников и чаек вкусняшками. Они жуют 6 секунд, а ты проходишь мимо. Перезарядка 5 секунд.',
+  pickle: 'Огурец-философ делает рывок. Жми кнопку, чтобы проскочить мимо охраны и птиц.',
+  toast: 'Хлебушек прыгает. Жми кнопку, чтобы перепрыгнуть плотины и преграды.',
+  donut: 'Пончик прогрызает деревянные плотины. Подкатись к плотине и жми «Хруст».',
+  cloud: 'Облачко становится невидимым: птицы и охрана не заметят 10 секунд. Жми кнопку.',
+  pelmen: 'Пельмень бьёт искрой: охранники и птицы рядом замирают на 6 секунд.',
+  dragon: 'Летающая ящерка летит над сушей и плотинами 6 секунд. Жми кнопку.',
+  octo: 'Осьминог меняет цвет на зелёный: птицы и охрана не видят. Он пролезает в узкие щели в заборах и дышит на суше 15 секунд.',
+  blob: 'Рыба-капля превращается в соплю. Жми кнопку у берега: 8 секунд можно ползти по суше и дышать, птицы и охрана не заметят.',
+  dolphin: 'Дельфин прыгает до 5 метров. Зажми кнопку и целься джойстиком: чем дольше держишь, тем дальше прыжок. Отпусти, чтобы прыгнуть.'
+};
+const YT_HINT = 'Ты ютубер! Дойди до Ютуб-лэнда: на каждом уровне свои препятствия, а у тебя своя суперсила.';
+const MEME_HINT = 'Ты мем! Беги к воротам Мемо-лэнда, там всё смешное и весёлое.';
+const BOWL_HINT_LIZ = 'Ты в круглом террариуме в здании. Катись и целься на мягкое: подушка, диван, ковёр. Цель: родные джунгли!';
+const BOWL_HINT = 'Ты в аквариуме в здании. Катись и целься на мягкое: матрас, диван, ковёр. На твёрдый пол с высоты аквариум разобьётся.';
+const BOWL_HINT_PUFFER = 'Ты в аквариуме в здании. Рыба-шар не боится падений: она умеет катиться.';
+const LEVEL_HINTS = ['', 'Река. Цапли охотятся на суше.', 'Океан уже близко. Береги влажность на пляже.'];
+function startLevel(type, i) {
+  aim = null; aimGroup.visible = false; buildLevel(type, i); lives = 3; wonFinal = false; sel = type;
+  P = newPlayer(type); setFish(type);
+  mode = 'play'; showScreen(null); playUI(true);
+  $('lvName').textContent = SPEC[type].name + ' · ' + THEMES[type][i].name + ' ' + (i + 1) + '/' + (SPEC[type].nlev || 3);
+  snapCamera();
+  bowl.visible = P.bowl; setupAbility(); updateEnv(10, time);
+  if (i === 0 && !INTRO_SEEN[type]) { INTRO_SEEN[type] = true; startCut(introShots(type), () => { mode = 'play'; showScreen(null); playUI(true); snapCamera(); toast(SPEC[type].yt ? YT_HINT : SPEC[type].meme ? MEME_HINT : SPEC[type].liz ? BOWL_HINT_LIZ : (type === 'puffer' ? BOWL_HINT_PUFFER : BOWL_HINT), 5600); }); return; }
+  if (LVL.museum) toast(MUSEUM_HINT, 7000); else toast(i === 0 ? (SPEC[type].yt ? YT_HINT : SPEC[type].meme ? MEME_HINT : SPEC[type].liz ? BOWL_HINT_LIZ : type === 'puffer' ? BOWL_HINT_PUFFER : BOWL_HINT) : (LVL.rooms.some(r => r.theme === 'cafe') ? 'Ты в кофейне! Баристы ловят рыбку на суше, а в камуфляже не видят. Узкие щели в перегородках — для осьминога. Найди ЩЕЛЬ в двери.' : (type === 'octo' && i === 1) ? 'Рыбный рынок: в заборах есть узкие щели, осьминог в них пролезает. Чайки не видят камуфляж.' : LVL.rooms.some(r => r.theme === 'aquarium') ? 'Ты в океанариуме! Охрана ловит рыбку на суше, а соплю не видит. Найди ТРУБУ в конце зала: она ведёт в океан.' : LVL.club ? 'Ты в ночном клубе! Охранники ловят рыбку на суше. Найди ВЫХОД и плыви к океану.' : (type === 'dolphin' && i === 2 ? 'Дельфинарий: перепрыгивай тренеров и ищи ВЫХОД.' : LEVEL_HINTS[i])), 5600);
+}
+function gameOver(msg) { endScreen('Не получилось', msg, 'Ещё раз', () => restartLevel(), 'К выбору рыбки', () => showSelect()); }
+function levelDone() {
+  mode = 'anim'; animT = 0; blip(660, 0.25); blip(880, 0.3);
+  wonFinal = LI === ((SPEC[CUR] && SPEC[CUR].nlev || 3) - 1) || CUR === 'final' || CUR === 'lfinal';
+  for (let i = 0; i < 24; i++) emit(P.x + rnd(-2, 2), 0.2, P.z + rnd(-2, 2), rnd(-2, 2), rnd(4, 9), rnd(-2, 2), rnd(0.8, 1.4), i % 2 ? 0xe8fbff : 0xffd24a, rnd(0.1, 0.2), 14);
+}
+function afterLevel() {
+  if (CUR === 'lfinal') { SAVE.lizDone = true; persist(); lizPartyCut(() => endScreen('Все на свободе!', 'Вся команда сбежала из Большого террариума и вернулась в джунгли. Теперь можно праздновать!', 'К выбору', () => showSelect(), 'Сыграть финал ещё раз', () => startLizFinal())); return; }
+  if (CUR === 'final') { SAVE.finalDone = true; persist(); if (!SAVE.chamSeen) { SAVE.chamSeen = true; persist(); chameleonCut(() => finalEnd()); return; } finalEnd(); return; }
+  if (false) { endScreen('Все на свободе!', 'Восемь друзей сбежали из Большого океанариума вместе, потому что у каждого своя суперсила. Океан снова ваш.', 'К выбору рыбки', () => showSelect(), 'Сыграть финал ещё раз', () => startFinalLevel()); return; }
+  const idx = FISH_ORDER.indexOf(CUR), nm = SPEC[CUR].name;
+  if (SPEC[CUR].yt && wonFinal) { SAVE.prog[CUR] = 0; SAVE.freed[CUR] = true; persist(); const done = () => { if (YT_ORDER.every(id => SAVE.freed[id]) && !SAVE.ytDone) { SAVE.ytDone = true; persist(); lizPartyCut(() => endScreen('Ютуб-лэнд покорён!', 'Все пять ютуберов добрались до Ютуб-лэнда и устроили главный стрим всех времён!', 'К выбору', () => showSelect(), 'Ещё раз', () => startLevel(CUR, 0)), { crew: YT_ORDER, lvl: YT_ORDER[0], texts: ['Все пять ютуберов добрались до Ютуб-лэнда!', 'Телепорт, байки, коробки и биты: вот это стрим!', 'Миллион подписчиков и ни одной охраны. Конец!'] }); return; } endScreen('Ютуб-лэнд!', nm + ' добрался до Ютуб-лэнда. Подписчики в восторге!', 'К выбору', () => showSelect(), 'Сыграть ещё раз', () => startLevel(CUR, 0)); }; memeCut(done); return; }
+  if (SPEC[CUR].meme && wonFinal) { SAVE.prog[CUR] = 0; SAVE.freed[CUR] = true; persist(); const done = () => { if (allMemeFreed() && !SAVE.memeDone) { SAVE.memeDone = true; persist(); lizPartyCut(() => endScreen('Мемо-лэнд спасён!', 'Все пять мемов добрались до Мемо-лэнда и устроили главный мемный праздник!', 'К выбору', () => showSelect(), 'Ещё раз', () => startLevel(CUR, 0)), { crew: MEME_ORDER, lvl: 'pickle', texts: ['Все пять мемов добрались до Мемо-лэнда!', 'Огурец философствует, хлебушек подпрыгивает, пельмень искрит. Вот это вечеринка!', 'Мемо-лэнд навсегда. Конец!'] }); return; } endScreen('Мемо-лэнд!', nm + ' добрался до Мемо-лэнда. Вот это мем!', 'К выбору', () => showSelect(), 'Сыграть ещё раз', () => startLevel(CUR, 0)); }; memeCut(done); return; }
+  if (SPEC[CUR].liz && wonFinal) { SAVE.prog[CUR] = 0; SAVE.freed[CUR] = true; persist(); const done = () => { if (allLizFreed() && !SAVE.lizDone) { lizCaptureCut(() => startLizFinal()); return; } endScreen('Дома!', nm + ' вернулась в родные джунгли. Свобода!', 'К выбору', () => showSelect(), 'Сыграть ещё раз', () => startLevel(CUR, 0)); }; jungleCut(done); return; }
+  if (!wonFinal) {
+    SAVE.prog[CUR] = LI + 1; persist();
+    endScreen('Уровень пройден', nm + (SPEC[CUR].yt ? ': до Ютуб-лэнда осталось ' : SPEC[CUR].meme ? ': до Мемо-лэнда осталось ' : SPEC[CUR].liz ? ': до джунглей осталось ' : ': до океана осталось ') + KM[LI % 3][1] + ' км. Дальше: ' + THEMES[CUR][LI + 1].name + '.', 'Дальше', () => startLevel(CUR, LI + 1));
+    return;
+  }
+  SAVE.prog[CUR] = 0; SAVE.freed[CUR] = true;
+  const left = FISH_ORDER.filter(id => !SAVE.freed[id]);
+  SAVE.finished = left.length === 0;
+  persist();
+  if (!left.length) { endScreen('Все рыбки в океане!', nm + ' доплыла последней. Все восемь добрались до океана!', 'Дальше', () => finaleCut()); return; }
+  if (left.length) {
+    const nx = left[0];
+    endScreen('Океан!', nm + ' добралась до океана и на свободе. Осталось рыбок: ' + left.length + '. Следующая: ' + SPEC[nx].name + '.', 'Играть за ' + SPEC[nx].name, () => { SAVE.prog[nx] = 0; startLevel(nx, 0); }, 'К выбору рыбки', () => showSelect());
+  } else endScreen('Все рыбки в океане', 'Все восемь рыбок добрались до океана: золотая, летучая, надувная, пиранья, дельфин, рыба-капля, осьминог и электрический угорь. Путь пройден.', 'К выбору рыбки', () => showSelect());
+}
+
+/* ---------- checkpoints, transformation rings ---------- */
+const colorsEl = $('colors');
+function buildColors() {
+  colorsEl.innerHTML = '';
+  MUSEUM_COLS.forEach(c => { const b = document.createElement('button'); b.className = 'sw'; b.style.background = '#' + c.col.toString(16).padStart(6, '0'); b.setAttribute('aria-label', c.name); b.dataset.col = c.col;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (mode !== 'play' || !LVL.museum) return; P.camoCol = c.col; if (!P.camo) { P.camo = true; P.camoT = 9999; burst(P.x, P.y + 0.4, P.z, c.col, 14); blip(300, 0.18, 'sine'); } else blip(380, 0.1, 'sine'); });
+    colorsEl.appendChild(b); });
+}
+buildColors();
+function updateColors() {
+  const on = mode === 'play' && !!LVL.museum; colorsEl.hidden = !on; if (!on) return;
+  for (const b of colorsEl.children) b.classList.toggle('on', P.camo && +b.dataset.col === (P.camoCol || 0));
+  const hi = hallIdx(P.x); if (hi !== P.hall) { P.hall = hi; if (hi >= 0) { toast('Зал «' + MUSEUM_COLS[hi].name + '». ' + (camoHides() ? 'Ты слился со стеной!' : 'Стань такого же цвета!'), 2400); } }
+}
+function updateProgress() {
+  updateColors();
+  for (const p of LVL.pools) {
+    if (p.cp && !p.hit && (P.inWater || (LVL.noWater && P.onLand && !P.bowl)) && Math.abs(P.x - p.x) < p.a * 0.7) {
+      p.hit = true; LVL.cp = p; if (p.flagMat) p.flagMat.color.setHex(0x4aff7a);
+      toast('Контрольная точка сохранена', 2400); blip(880, 0.15); blip(1180, 0.2);
+    }
+  }
+  for (const s of LVL.stations) {
+    if (!s.used && !P.bowl && Math.abs(P.x - s.x) < 1.6 && Math.abs(P.z - s.z) < 3.4 && P.y < 4.5) { s.used = true; if (LVL.collect) collectNext(); else openPicker(); break; }
+  }
+}
+function openPicker() {
+  mode = 'pick'; playUI(false); aim = null; aimGroup.visible = false; inp.x = inp.z = 0;
+  const g = $('pickGrid'); g.innerHTML = '';
+  FISH_ORDER.forEach(id => {
+    const b = document.createElement('button'); b.className = 'card' + (P.type === id ? ' sel' : ''); b.dataset.id = id;
+    const c = document.createElement('canvas'); c.width = 160; c.height = 110; paintPreview(c, id);
+    const n = document.createElement('b'); n.textContent = SPEC[id].name; const d = document.createElement('span'); d.textContent = SPEC[id].ab;
+    b.append(c, n, d); b.addEventListener('click', () => pickFish(id)); g.append(b);
+  });
+  showScreen('pick');
+}
+function pickFish(id) {
+  showScreen(null); mode = 'play';
+  if (id !== P.type) {
+    setFish(id); P.wet = 1; P.cd = 0; P.inv = Math.max(P.inv, 0.8); burst(P.x, P.y + 0.5, P.z, 0x7df0ff, 28); blip(700, 0.2, 'triangle');
+    toast('Теперь ты: ' + SPEC[id].name + '. ' + SPEC[id].ab + '.', 2600);
+  }
+  playUI(true);
+}
+$('pickKeep').addEventListener('click', () => pickFish(P.type));
+
+/* ---------- cutscenes ---------- */
+let cut = null; const INTRO_SEEN = {};
+const mix3 = (a, b, u) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)];
+function camSet(p, l) { camera.position.set(p[0], p[1], p[2]); lookT.set(l[0], l[1], l[2]); camera.lookAt(lookT); }
+function startCut(shots, done) {
+  cut = { shots, i: 0, t: 0, done }; mode = 'cut'; playUI(false); showScreen(null); inp.x = inp.z = 0;
+  $('cut').hidden = false; $('cutFade').style.opacity = 0; $('cutText').textContent = shots[0].text || ''; $('cutText').hidden = !shots[0].text;
+  if (shots[0].init) shots[0].init();
+}
+function endCut() { const d = cut.done; cut = null; $('cut').hidden = true; $('cutFade').style.opacity = 0; d(); }
+function updateCut(dt) {
+  if (!cut) return;
+  const s = cut.shots[cut.i]; cut.t += dt;
+  const u = clamp(cut.t / s.dur, 0, 1); s.cam(u); if (s.act) s.act(u, dt, cut.t);
+  if (P && P.bowl !== undefined && !s.noPlayer) { fishObj.root.position.set(P.x, P.y - (P.bowl ? 0.2 : 0), P.z); fishObj.root.rotation.y = P.rot; fishObj.wag(Math.sin(time * 6) * 0.3); bowl.position.set(P.x, P.y, P.z); }
+  if (cut.t >= s.dur) {
+    cut.i++; cut.t = 0;
+    if (cut.i >= cut.shots.length) { endCut(); return; }
+    const n = cut.shots[cut.i]; $('cutText').textContent = n.text || ''; $('cutText').hidden = !n.text; if (n.init) n.init();
+  }
+}
+$('cutSkip').addEventListener('click', e => { e.stopPropagation(); if (cut) endCut(); });
+const INTRO = {
+  gold: ['Золотая рыбка живёт в круглом аквариуме в обычной квартире.', 'Каждый день она смотрит в окно и мечтает об океане.', 'Сегодня она катится навстречу свободе!'],
+  flyer: ['Летучая рыба скучает в аквариуме на шкафу в офисе.', 'Она слышала, что океан огромный, а небо над ним ещё больше.', 'Хватит сидеть на месте. Пора взлетать!'],
+  puffer: ['Рыба-шар сидит в аквариуме магазина игрушек.', 'Ей надоело, что её раздувают ради смеха.', 'Один толчок, и она покатилась к выходу!'],
+  piranha: ['Пиранья живёт в аквариуме на кухне ресторана.', 'Она узнала, что в меню её называют «закуской».', 'Пора прогрызть себе путь на свободу!'],
+  dolphin: ['Дельфин живёт в аквариуме музея. Ему тесно среди экспонатов.', 'Он помнит, как это: прыгать над волнами.', 'Один мощный прыжок, и он на воле!'],
+  blob: ['Рыбу-каплю привезли в лабораторию с самого дна океана.', 'Учёные смотрят на неё и качают головами.', 'Она хочет домой, пусть даже ползком!'],
+  eel: ['Электрического угря держат в аквариуме в мастерской.', 'Он копил заряд всю неделю.', 'Сегодня ток поможет ему сбежать!'],
+  hamster: ['Хомяк-дипломат работает в мемном офисе и носит портфель с вкусняшками.', 'Он уверен, что любую охрану можно уговорить угощением.', 'Переговоры начинаются! Вперёд, в Мемо-лэнд!'],
+  egorka: ['Егорка Геймер снимает видео про игры и мечтает о сотне подписчиков.', 'Но сегодня он решил найти страну, где ютуберов любят по-настоящему.', 'Ютуб-лэнд, жди! Телепортируемся!'],
+  bayan: ['Балагур Анекдотович знает тысячу смешных историй и ни одной грустной.', 'Охрана и чайки слушают его, раскрыв клювы.', 'В Ютуб-лэнд, рассказывать байки!'],
+  unbox: ['Распаковщик Коробкин открывает посылки на камеру.', 'Сегодня он сам стал посылкой и поехал по адресу: Ютуб-лэнд.', 'Главное, чтобы коробка не промокла!'],
+  mc: ['MC Битбокс записал трек, но студия закрыта, а охрана не любит басы.', 'Зато в Ютуб-лэнде концерт можно давать на каждом углу.', 'Включаем бит и бежим!'],
+  candy: ['Сладкоежка Лолли снимает челленджи со сладостями.', 'Все конфеты закончились, нужно срочно в Ютуб-лэнд, там их горы.', 'Сахарный рывок, поехали!'],
+  pickle: ['Огурец-философ лежит в холодильнике и думает о смысле жизни.', 'Ему кажется, что смысл где-то в Мемо-лэнде.', 'Пора катиться на поиски смысла!'],
+  toast: ['Хлебушек выскочил из тостера и понял: он теперь мем.', 'Все смотрят на него и смеются, а ему весело.', 'Подпрыгнем до самого Мемо-лэнда!'],
+  donut: ['Пончик-хрустик сбежал с кондитерской витрины.', 'Он слышал, что в Мемо-лэнде из таких, как он, строят дома.', 'Хрустим вперёд!'],
+  cloud: ['Облачко-грустняшка плыло над городом и всех расстраивало.', 'В Мемо-лэнде даже тучи смеются, говорят.', 'Пора стать невидимкой и уплыть!'],
+  pelmen: ['Пельмень-искра выпал из сковородки, и его ударило током.', 'С тех пор он искрит от каждого смешного слова.', 'В Мемо-лэнд, где его ждут!'],
+  cham: ['Хамелеон живёт в террариуме в зоомагазине.', 'Он умеет сливаться с чем угодно, но ему тесно.', 'Пора бежать в родные джунгли!'],
+  snake: ['Змея скучает в стеклянном террариуме.', 'Она давно мечтает о тёплом песке и свободе.', 'Прогрызём путь в джунгли!'],
+  liz: ['Ящерица живёт в классе у юных натуралистов.', 'Дети её любят, но она хочет на волю.', 'Быстрый рывок, и она на свободе!'],
+  dragon: ['Летающая ящерка сидит в библиотечном террариуме.', 'Она читала сказки о зелёных джунглях.', 'Пора расправить крылья!'],
+  octo: ['Осьминог живёт в зоомагазине и умеет менять цвет.', 'Когда продавец отвернётся, он станет незаметным.', 'Пора сбегать!']
+};
+function introShots(type) {
+  const T = INTRO[type], px = P.x, py = P.y, pz = P.z, look = [px, py + 0.4, pz];
+  return [
+    { dur: 3.4, text: T[0], cam: u => camSet(mix3([px + 26, py + 17, 18], [px + 14, py + 10, 9], smooth(u)), [px + 3, py, pz]) },
+    { dur: 3.2, text: T[1], cam: u => camSet(mix3([px + 6, py + 2.6, 6.5], [px + 4, py + 1.8, 3.5], smooth(u)), look) },
+    { dur: 2.6, text: T[2], cam: u => { const c = camTarget(); camSet(mix3([px + 4, py + 1.8, 3.5], [c[0], c[1], c[2]], smooth(u)), mix3(look, [c[3], c[4], c[5]], smooth(u))); } }
+  ];
+}
+
+/* ---------- finale: everybody meets in the ocean, then a net, then the big oceanarium ---------- */
+let finGroup = null;
+function clearFin() { if (finGroup) { scene.remove(finGroup); disposeGroup(finGroup); finGroup = null; } }
+function finaleCut() {
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel('gold', 2); lives = 3; wonFinal = false;
+  const pl = LVL.pools[LVL.pools.length - 1], cx = pl.x0 + 36, cz = 0, N = FISH_ORDER.length;
+  finGroup = new THREE.Group(); scene.add(finGroup);
+  const fs = FISH_ORDER.map((id, i) => { const f = makeFish(id); f.root.scale.setScalar(0.75); finGroup.add(f.root); return { f, a: i / N * TAU, i }; });
+  fishObj.root.visible = false; bowl.visible = false; ripple.visible = false; shadow.visible = false;
+  const net = new THREE.Mesh(new THREE.SphereGeometry(8, 18, 10, 0, TAU, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a0, wireframe: true, transparent: true, opacity: 0.9 }));
+  net.visible = false; finGroup.add(net);
+  const place = (o, x, y, z, hx, hz, wag) => { o.f.root.position.set(x, y, z); o.f.root.rotation.y = Math.atan2(-hz, hx); o.f.wag(Math.sin(time * 9 + o.i) * 0.4 * wag); };
+  const orbit = (ang, r, h) => camSet([cx + Math.cos(ang) * r, h, cz + Math.sin(ang) * r], [cx, -0.3, cz]);
+  const shots = [
+    { dur: 3.8, noPlayer: true, text: 'Все восемь рыбок доплыли до океана!', cam: u => orbit(0.4 + u * 0.6, 24, 9),
+      act: u => fs.forEach(o => { const r = lerp(48, 5.5, smooth(u)), an = o.a + (1 - u) * 1.4, x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; place(o, x, -0.55, z, cx - x, cz - z, 1); }) },
+    { dur: 3.4, noPlayer: true, text: 'Они радуются и встречаются все вместе!', cam: u => orbit(1 + u * 0.7, 17, 6),
+      act: (u, dt, t) => fs.forEach(o => { const an = o.a + t * 0.9, x = cx + Math.cos(an) * 5.5, z = cz + Math.sin(an) * 5.5, jy = Math.max(0, Math.sin(t * 3.2 + o.i * 1.7)) * 2.6; place(o, x, -0.55 + jy, z, -Math.sin(an), Math.cos(an), 1); if (Math.random() < dt * 1.2) splash(x, z, 8); }) },
+    { dur: 4.2, noPlayer: true, text: 'Но вдруг сверху опустилась огромная сеть...', cam: u => orbit(1.7 + u * 0.4, 22, 8 + u * 6),
+      init: () => { net.visible = true; },
+      act: (u, dt, t) => { const down = u < 0.5, ny = down ? lerp(26, -0.2, smooth(u / 0.5)) : lerp(-0.2, 28, smooth((u - 0.5) / 0.5)); net.position.set(cx, ny, cz);
+        fs.forEach(o => { const an = o.a + t * 0.9, r = down ? 5.5 : lerp(5.5, 2.5, smooth((u - 0.5) / 0.3)), x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; place(o, x, down ? -0.55 : Math.max(-0.55, ny + 0.6), z, -Math.sin(an), Math.cos(an), down ? 1 : 2); }); } },
+    { dur: 3.2, noPlayer: true, text: 'И привезла всех в Большой океанариум!', cam: u => orbit(2.1, 22 + u * 6, 14 + u * 10), act: u => { $('cutFade').style.opacity = smooth(clamp((u - 0.35) / 0.65, 0, 1)); net.position.y += 0.2; fs.forEach(o => o.f.root.position.y += 0.2); } }
+  ];
+  startCut(shots, () => { clearFin(); startFinalLevel(); });
+}
+function startFinalLevel(skipIntro) {
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel('final', 0); lives = 3; wonFinal = false; sel = 'final';
+  P = newPlayer('gold'); setFish('gold'); fishObj.root.visible = true;
+  $('lvName').textContent = 'Большой океанариум'; snapCamera(); setupAbility(); updateEnv(10, time);
+  const begin = () => { mode = 'play'; showScreen(null); playUI(true); snapCamera(); toast('Пролетай сквозь светящиеся кольца: каждые 5 метров можно стать любой рыбкой. Вместе вы сбежите!', 6000); };
+  if (skipIntro) { begin(); return; }
+  const px = P.x, pz = P.z;
+  startCut([
+    { dur: 3.6, text: 'Большой океанариум. Все восемь снова в плену!', cam: u => camSet(mix3([px + 18, 24, 26], [px + 40, 14, 12], smooth(u)), [px + 34, 0, 0]) },
+    { dur: 3.4, text: 'У каждого своя суперсила. Меняйтесь рыбками на кольцах и сбегайте вместе!', cam: u => { const c = camTarget(); camSet(mix3([px + 40, 14, 12], [c[0], c[1], c[2]], smooth(u)), mix3([px + 34, 0, 0], [c[3], c[4], c[5]], smooth(u))); } }
+  ], begin);
+}
+/* ---------- big terrarium: the lizards are caught, and every 6 m (30 u) they meet a new friend ---------- */
+let roster = ['cham'], rosterI = 0;
+function allLizFreed() { return LIZ_ORDER.every(id => SAVE.freed[id]); }
+function updateSwapBtn() { if (!roster.length) return; $('swapName').textContent = SPEC[roster[(rosterI + 1) % roster.length]].name; }
+function collectNext() {
+  const seq = LIZ_ORDER.filter(i => i !== 'cham').concat(FISH_ORDER), id = seq[roster.length - 1];
+  if (!id) { toast('Все друзья уже с тобой!', 1800); return; }
+  roster.push(id); burst(P.x, P.y + 1, P.z, 0xffe27a, 26); blip(660, 0.15); blip(990, 0.2);
+  toast('Новый друг: ' + SPEC[id].name + '! Нажми «Смена», чтобы стать им (' + roster.length + '/' + (seq.length + 1) + ').', 3600); updateSwapBtn();
+}
+function swapFish() {
+  if (mode !== 'play' || !LVL.collect || roster.length < 2 || P.bowl) return;
+  aim = null; aimGroup.visible = false; rosterI = (rosterI + 1) % roster.length; const id = roster[rosterI];
+  const keep = { x: P.x, z: P.z, y: P.y, rot: P.rot };
+  setFish(id); P.cd = 0; P.wet = 1; P.camo = false; P.slime = false; P.infl = false; P.dash = 0; P.lunge = 0; P.inv = Math.max(P.inv, 0.7);
+  burst(P.x, P.y + 0.6, P.z, 0x7df0ff, 22); blip(700, 0.15, 'triangle'); toast(SPEC[id].name + ': ' + SPEC[id].ab, 1800); updateSwapBtn(); setupAbility();
+}
+$('swap').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); swapFish(); });
+window.addEventListener('keydown', e => { if (e.code === 'KeyE' || e.code === 'Tab') { e.preventDefault(); if (!e.repeat) swapFish(); } });
+function startLizFinal(skipIntro) {
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel('lfinal', 0); lives = 3; wonFinal = false; sel = 'lfinal'; roster = ['cham']; rosterI = 0;
+  P = newPlayer('cham'); setFish('cham'); fishObj.root.visible = true;
+  $('lvName').textContent = 'Большой террариум'; snapCamera(); setupAbility(); updateEnv(10, time); updateSwapBtn();
+  const begin = () => { mode = 'play'; showScreen(null); playUI(true); snapCamera(); toast('Проходи отсеки. Каждые 6 метров ждёт новый друг: бери его и меняйся кнопкой «Смена».', 6000); };
+  if (skipIntro) { begin(); return; }
+  const px = P.x, pz = P.z;
+  startCut([
+    { dur: 3.4, text: 'Большой террариум. Все четыре ящерицы снова в плену!', cam: u => camSet(mix3([px + 14, 22, 24], [px + 34, 13, 12], smooth(u)), [px + 28, 0, 0]) },
+    { dur: 3.2, text: 'В каждом отсеке сидит новый друг. Берите его с собой и меняйтесь в любой момент!', cam: u => { const c = camTarget(); camSet(mix3([px + 34, 13, 12], [c[0], c[1], c[2]], smooth(u)), mix3([px + 28, 0, 0], [c[3], c[4], c[5]], smooth(u))); } }
+  ], begin);
+}
+function lizCaptureCut(done) {
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel('cham', 2); lives = 3;
+  const J = LVL.jungle, cx = J.x0 + 26, cz = 0;
+  finGroup = new THREE.Group(); scene.add(finGroup);
+  const fs = LIZ_ORDER.map((id, i) => { const f = makeFish(id); f.root.scale.setScalar(0.8); finGroup.add(f.root); return { f, a: i / 4 * TAU, i }; });
+  fishObj.root.visible = false; bowl.visible = false; ripple.visible = false; shadow.visible = false;
+  const net = new THREE.Mesh(new THREE.SphereGeometry(8, 18, 10, 0, TAU, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a0, wireframe: true, transparent: true, opacity: 0.9 })); net.visible = false; finGroup.add(net);
+  const gy = H(cx, cz), put = (o, x, z, hx, hz, jy) => { o.f.root.position.set(x, H(x, z) + 0.3 + (jy || 0), z); o.f.root.rotation.y = Math.atan2(-hz, hx); o.f.wag(Math.sin(time * 9 + o.i) * 0.4); };
+  const orbit = (ang, r, h) => camSet([cx + Math.cos(ang) * r, gy + h, cz + Math.sin(ang) * r], [cx, gy + 0.5, cz]);
+  startCut([
+    { dur: 3.4, noPlayer: true, text: 'Все четыре ящерицы вернулись в родные джунгли!', cam: u => orbit(0.4 + u * 0.6, 22, 8), act: u => fs.forEach(o => { const r = lerp(34, 5, smooth(u)), an = o.a + (1 - u) * 1.2, x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; put(o, x, z, cx - x, cz - z); }) },
+    { dur: 3.2, noPlayer: true, text: 'Они радуются и встречаются все вместе!', cam: u => orbit(1 + u * 0.7, 15, 5.5), act: (u, dt, t) => fs.forEach(o => { const an = o.a + t * 0.9, x = cx + Math.cos(an) * 4.5, z = cz + Math.sin(an) * 4.5; put(o, x, z, -Math.sin(an), Math.cos(an), Math.max(0, Math.sin(t * 3.2 + o.i * 1.7)) * 2.2); }) },
+    { dur: 4, noPlayer: true, text: 'Но сверху опустилась огромная сеть...', cam: u => orbit(1.7 + u * 0.4, 20, 7 + u * 5), init: () => { net.visible = true; },
+      act: (u, dt, t) => { const dn = u < 0.5, ny = dn ? lerp(26, gy, smooth(u / 0.5)) : lerp(gy, gy + 28, smooth((u - 0.5) / 0.5)); net.position.set(cx, ny, cz); fs.forEach(o => { const an = o.a + t * 0.9, r = dn ? 4.5 : lerp(4.5, 2, smooth((u - 0.5) / 0.3)), x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; put(o, x, z, -Math.sin(an), Math.cos(an), dn ? 0 : Math.max(0, ny - gy)); }); } },
+    { dur: 3, noPlayer: true, text: 'И их увезли в Большой террариум!', cam: u => orbit(2.1, 20 + u * 6, 12 + u * 8), act: u => { $('cutFade').style.opacity = smooth(clamp((u - 0.35) / 0.65, 0, 1)); net.position.y += 0.25; fs.forEach(o => o.f.root.position.y += 0.25); } }
+  ], () => { clearFin(); done(); });
+}
+function lizPartyCut(done, opts) {
+  opts = opts || {}; const TX = opts.texts || ['Ура! Побег из террариума удался!', 'Вся команда устроила самую весёлую вечеринку в джунглях!', 'Дома лучше всего. Конец!'];
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel(opts.lvl || 'cham', 2); lives = 3;
+  const J = LVL.jungle, cx = J.x0 + 24, cz = 0, gy = H(cx, cz);
+  finGroup = new THREE.Group(); scene.add(finGroup);
+  const crew = opts.crew || (roster.length > 1 ? roster : LIZ_ORDER.slice()), N = crew.length;
+  const fs = crew.map((id, i) => { const f = makeFish(id); f.root.scale.setScalar(0.8); finGroup.add(f.root); return { f, a: i / N * TAU, i }; });
+  fishObj.root.visible = false; bowl.visible = false; ripple.visible = false; shadow.visible = false;
+  const cols = [0xff5a5a, 0xffd24a, 0x4ac0ff, 0x6ae06a, 0xff7ad9, 0xffffff];
+  const confetti = (n, y) => { for (let i = 0; i < n; i++) emit(cx + rnd(-9, 9), gy + y + rnd(0, 3), cz + rnd(-9, 9), rnd(-3, 3), rnd(2, 8), rnd(-3, 3), rnd(1.2, 2.4), cols[i % cols.length], rnd(0.12, 0.26), 6); };
+  const put = (o, r, an, jy, face) => { const x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; o.f.root.position.set(x, H(x, z) + 0.3 + jy, z); o.f.root.rotation.y = face; o.f.wag(Math.sin(time * 14 + o.i) * 0.6); };
+  const orbit = (ang, r, h) => camSet([cx + Math.cos(ang) * r, gy + h, cz + Math.sin(ang) * r], [cx, gy + 1.5, cz]);
+  let tick = 0;
+  startCut([
+    { dur: 3.4, noPlayer: true, text: TX[0], cam: u => orbit(0.3 + u * 0.5, 20, 7), act: (u, dt, t) => { fs.forEach(o => { const r = lerp(40, 7, smooth(u)), an = o.a; put(o, r, an, Math.abs(Math.sin(t * 6 + o.i)) * 0.7, Math.atan2(-(cz - cz - Math.sin(an) * r), -Math.cos(an) * r)); }); tick += dt; if (tick > 0.25) { tick = 0; confetti(6, 4); } } },
+    { dur: 4.4, noPlayer: true, text: TX[1], cam: u => orbit(1 + u * 1.6, 16 - u * 3, 5 + Math.sin(u * 6) * 1.2),
+      act: (u, dt, t) => { fs.forEach(o => { const an = o.a + t * (o.i % 2 ? 1 : -1) * 0.8, r = 7 + Math.sin(t * 2 + o.i) * 1.5, jy = Math.max(0, Math.sin(t * 5 + o.i * 1.3)) * 3; put(o, r, an, jy, an + (o.i % 2 ? Math.PI / 2 : -Math.PI / 2) + t * 4); }); tick += dt; if (tick > 0.12) { tick = 0; confetti(10, 6); if (Math.random() < 0.5) blip(500 + rnd(0, 500), 0.08, 'triangle', 0.05); } } },
+    { dur: 3, noPlayer: true, text: TX[2], cam: u => orbit(2.6, 14 + u * 8, 7 + u * 5), act: (u, dt, t) => { fs.forEach(o => { const an = o.a + t * 0.5; put(o, 7, an, Math.abs(Math.sin(t * 4 + o.i)) * 1.2, an + Math.PI / 2); }); tick += dt; if (tick > 0.2) { tick = 0; confetti(6, 5); } $('cutFade').style.opacity = smooth(clamp((u - 0.7) / 0.3, 0, 1)); } }
+  ], () => { clearFin(); done(); });
+}
+function allFreed() { return FISH_ORDER.every(id => SAVE.freed[id]); }
+
+function allMemeFreed() { return MEME_ORDER.every(id => SAVE.freed[id]); }
+function memeCut(done) {
+  const y0 = P.y, z0 = P.z; P.rot = 0;
+  startCut([
+    { dur: 3.4, text: SPEC[CUR].yt ? 'Ворота Ютуб-лэнда! Тут пахнет славой.' : 'Ворота Мемо-лэнда! Тут пахнет конфетти.', cam: u => camSet(mix3([P.x - 12, y0 + 5, z0 + 9], [P.x - 6, y0 + 3, z0 + 6], smooth(u)), [P.x + 6, y0 + 1.5, z0]), act: (u, dt) => { P.x += 3.4 * dt; if (Math.random() < dt * 14) emit(P.x + rnd(-3, 5), y0 + 5, P.z + rnd(-4, 4), rnd(-1, 1), rnd(-2, 0), rnd(-1, 1), 1.8, [0xff5a5a, 0xffd24a, 0x4ac0ff, 0xff7ad9][Math.floor(rnd(0, 4))], 0.2, 4); } },
+    { dur: 3, text: SPEC[CUR].yt ? 'Здесь тебя ждут миллионы подписчиков!' : 'Здесь все смеются, и ты теперь тоже мем!', cam: u => camSet([P.x - 8 + u * 3, y0 + 2.5, z0 + 5], [P.x + 5, y0 + 2.2, z0]), act: (u, dt) => { P.x += 3 * dt; if (Math.random() < dt * 14) emit(P.x + rnd(-3, 5), y0 + 5, P.z + rnd(-4, 4), rnd(-1, 1), rnd(-2, 0), rnd(-1, 1), 1.8, [0xff5a5a, 0xffd24a, 0x4ac0ff, 0xff7ad9][Math.floor(rnd(0, 4))], 0.2, 4); $('cutFade').style.opacity = smooth(clamp((u - 0.6) / 0.4, 0, 1)); } }
+  ], done);
+}
+function jungleCut(done) {
+  const x0 = P.x, z0 = P.z, y0 = P.y; P.rot = 0;
+  startCut([
+    { dur: 3.4, text: 'Родные джунгли! Здесь пахнет домом.', cam: u => camSet(mix3([P.x - 12, y0 + 5, z0 + 9], [P.x - 6, y0 + 3, z0 + 6], smooth(u)), [P.x + 6, y0 + 1.5, z0]), act: (u, dt) => { P.x += 3.4 * dt; } },
+    { dur: 3, text: 'Ящерка снова на свободе, среди листвы и лиан.', cam: u => camSet([P.x - 8 + u * 3, y0 + 2.5, z0 + 5], [P.x + 5, y0 + 2.2, z0]), act: (u, dt) => { P.x += 3 * dt; $('cutFade').style.opacity = smooth(clamp((u - 0.6) / 0.4, 0, 1)); } }
+  ], done);
+}
+function finalEnd() { endScreen('Все на свободе!', 'Восемь друзей сбежали из Большого океанариума вместе, потому что у каждого своя суперсила. Океан снова ваш.', 'К выбору рыбки', () => showSelect(), 'Сыграть финал ещё раз', () => startFinalLevel()); }
+function makeChameleon() {
+  const g = new THREE.Group(), gm = lamb(0x6fcf3a), dk = lamb(0x3f9a24), body = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), gm);
+  body.scale.set(1.2, 0.8, 0.55); body.position.y = 0.9; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), gm); head.scale.set(1.2, 0.9, 0.9); head.position.set(1.3, 1.15, 0); g.add(head);
+  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 4), lamb(0xff9a3c)); crest.position.set(1.15, 1.8, 0); g.add(crest);
+  for (const z of [0.38, -0.38]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), dk); e.position.set(1.4, 1.5, z); g.add(e); const p = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), lamb(0x111111)); p.position.set(1.55, 1.52, z * 1.25); g.add(p); }
+  const tail = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.14, 8, 20, Math.PI * 1.7), gm); tail.position.set(-1.35, 0.75, 0); tail.rotation.set(0, 0, -0.5); g.add(tail);
+  const legs = [];
+  for (const [x, z] of [[0.7, 0.45], [0.7, -0.45], [-0.6, 0.45], [-0.6, -0.45]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.8, 6), dk); l.position.set(x, 0.4, z); g.add(l); legs.push(l); }
+  for (let k = 0; k < 5; k++) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), lamb(0xffd24a)); sp.position.set(-0.8 + k * 0.45, 1.5, (k % 2 ? 0.2 : -0.2)); g.add(sp); }
+  g.userData = { gm, dk, legs };
+  return g;
+}
+function chameleonCut(done) {
+  clearFin(); aim = null; aimGroup.visible = false;
+  buildLevel('gold', 2); lives = 3;
+  const pl = LVL.pools[LVL.pools.length - 1], cx = pl.x0 + 36, cz = 0, N = FISH_ORDER.length;
+  finGroup = new THREE.Group(); scene.add(finGroup);
+  const fs = FISH_ORDER.map((id, i) => { const f = makeFish(id); f.root.scale.setScalar(0.75); finGroup.add(f.root); return { f, a: i / N * TAU, i }; });
+  fishObj.root.visible = false; bowl.visible = false; ripple.visible = false; shadow.visible = false;
+  const cham = makeChameleon(); cham.scale.setScalar(0.9); finGroup.add(cham);
+  const shore = [cx - 30, 0.9, cz + 14], tgt = [cx + 3, -0.4, cz - 1];
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2.2, 0), lamb(0x8a8f86)); rock.position.set(shore[0] - 0.5, 0.2, shore[2]); rock.scale.y = 0.7; finGroup.add(rock);
+  const orbitC = (ang, r, h) => camSet([cx + Math.cos(ang) * r, h, cz + Math.sin(ang) * r], [cx, 0, cz]);
+  const swim = (t, wag) => fs.forEach(o => { const an = o.a + t * 0.5, r = 6, x = cx + Math.cos(an) * r, z = cz + Math.sin(an) * r; o.f.root.position.set(x, -0.55, z); o.f.root.rotation.y = Math.atan2(Math.cos(an), -Math.sin(an)) * -1 + Math.PI; o.f.wag(Math.sin(time * 8 + o.i) * 0.4); });
+  let splashed = false, hue = 0;
+  const colorize = (u) => { cham.userData.gm.color.setHSL((u * 2.5) % 1, 0.7, 0.5); };
+  const shots = [
+    { dur: 3.2, noPlayer: true, text: 'Прошло немного времени. Все восемь рыбок плещутся в океане.', cam: u => orbitC(0.6 + u * 0.4, 26, 10), act: (u, dt, t) => swim(t) },
+    { dur: 2.6, noPlayer: true, text: 'Но кто-то наблюдает за ними с берега...', cam: u => camSet(mix3([cx - 14, 4, cz + 20], [cx - 24, 3.2, cz + 17], smooth(u)), [shore[0], 1.8, shore[2]]),
+      act: (u, dt, t) => { swim(t); cham.position.set(shore[0], shore[1] + 1.6, shore[2]); cham.rotation.y = -0.9; colorize(u * 0.4); } },
+    { dur: 2.4, noPlayer: true, text: 'Хамелеон меняет цвет и прицеливается...', cam: u => camSet(mix3([cx - 24, 3.2, cz + 17], [cx - 18, 5, cz + 12], smooth(u)), [lerp(shore[0], cx, 0.3 * u), 1.5, lerp(shore[2], cz, 0.3 * u)]),
+      act: (u, dt, t) => { swim(t); cham.position.set(shore[0], shore[1] + 1.6 - u * 0.3, shore[2]); cham.rotation.y = -0.9; cham.scale.set(0.9 * (1 + u * 0.1), 0.9 * (1 - u * 0.15), 0.9); colorize(0.4 + u * 1.5); } },
+    { dur: 2.6, noPlayer: true, text: 'И прыгает к ним в воду!', cam: u => camSet(mix3([cx - 18, 5, cz + 12], [cx - 8, 7, cz + 10], smooth(u)), [lerp(shore[0], tgt[0], smooth(u)), lerp(3, 0, u), lerp(shore[2], tgt[2], smooth(u))]),
+      act: (u, dt, t) => { swim(t); const e = Math.min(1, u / 0.85), x = lerp(shore[0], tgt[0], e), z = lerp(shore[2], tgt[2], e), y = lerp(shore[1] + 1.3, tgt[1], e) + Math.sin(e * Math.PI) * 9;
+        cham.position.set(x, y, z); cham.rotation.y = Math.atan2(-(tgt[2] - shore[2]), tgt[0] - shore[0]); cham.rotation.z = (e - 0.5) * -0.8; cham.scale.set(0.9, 0.9, 0.9); colorize(1.9 + u);
+        if (u >= 0.85 && !splashed) { splashed = true; splash(tgt[0], tgt[2], 40); blip(160, 0.4, 'sine', 0.12); } if (u >= 0.85) cham.visible = false; } },
+    { dur: 3.6, noPlayer: true, text: 'Всплеск! Новый друг уже в океане. Кто он такой?..', cam: u => orbitC(2.2 + u * 0.5, 18 - u * 4, 7),
+      act: (u, dt, t) => { fs.forEach(o => { const an = o.a + t * 0.5, x = cx + Math.cos(an) * 6, z = cz + Math.sin(an) * 6; o.f.root.position.set(x, -0.55 + Math.max(0, Math.sin(t * 4 + o.i)) * 1.4, z); o.f.root.rotation.y = Math.atan2(cz - z, cx - x) * -1; o.f.wag(Math.sin(time * 9 + o.i) * 0.4); }); $('cutFade').style.opacity = smooth(clamp((u - 0.7) / 0.3, 0, 1)); } }
+  ];
+  startCut(shots, () => { clearFin(); done(); });
+}
+
+/* ---------- main loop ---------- */
+function updateHUD() {
+  const L = LVL;
+  if (LVL.museum) $('dist').textContent = 'До трубы: ' + Math.max(0, Math.round(LVL.goalX - P.x)) + ' м'; else { $('dist').textContent = (LVL.jungle ? (LVL.meme ? (LVL.yt ? 'До Ютуб-лэнда: ' : 'До Мемо-лэнда: ') : 'До джунглей: ') : 'До океана: ') + ''; $('dist').textContent += Math.round(lerp(L.km[0], L.km[1], clamp(P.x / L.goalX, 0, 1))) + ' км'; }
+  $('hearts').textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, 3 - lives));
+  const w = $('wet'), wv = P.slime ? clamp(P.slimeT / 8, 0, 1) : P.wet, show = !SPEC[P.type].liz && (P.slime || !P.inWater || P.wet < 0.99);
+  w.classList.toggle('on', show); w.classList.toggle('low', wv < 0.35);
+  $('wetBar').style.width = (wv * 100) + '%';
+  const sw = $('swap'); sw.hidden = !(LVL.collect && roster.length > 1 && !P.bowl);
+  const b = $('abil');
+  if (P.bowl !== b.hidden && SPEC[P.type].ab) b.hidden = P.bowl;
+  if (!b.hidden) {
+    const frac = P.type === 'puffer' ? 0 : clamp(P.cd / (P.cdMax || 1), 0, 1);
+    b.style.setProperty('--cd', (frac * 360) + 'deg');
+    $('abilName').textContent = (P.type === 'dolphin' && aim) ? (aimDist(aim.t) / 5).toFixed(1).replace('.', ',') + ' м' : (P.storyT > 0) ? Math.ceil(P.storyT) + ' с' : (P.camo) ? (LVL.museum ? 'Снять' : Math.ceil(P.camoT) + ' с') : P.type === 'puffer' ? (P.infl ? 'Сдуться' : 'Раздуться') : ((P.type === 'flyer' || P.type === 'dragon') && P.fly ? 'Спуск' : SPEC[P.type].ab);
+  }
+}
+function update(dt) {
+  time += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt);
+  updateWater(time, camera.position.x + 12, camera.position.z);
+  skyGroup.position.copy(camera.position);
+  for (const c of clouds) { const u = c.userData; u.x += u.v * dt; if (u.x > 450) u.x = -450; c.position.set(u.x, u.y, u.z); }
+  const sp0 = LVL.pools[0];
+  sun.position.set(camera.position.x + 40, 60, camera.position.z + 20); sun.target.position.copy(camera.position);
+  updateParts(dt);
+  if (mode === 'menu') {
+    bowl.visible = false;
+    const a = time * 0.18;
+    camera.position.set(sp0.x + Math.cos(a) * 16, 6.5, sp0.z + Math.sin(a) * 16); camera.lookAt(sp0.x, -0.5, sp0.z);
+    const fa = time * 0.7; fishObj.root.position.set(sp0.x + Math.cos(fa) * 4, -0.45, sp0.z + Math.sin(fa) * 3);
+    fishObj.root.rotation.y = Math.atan2(-Math.cos(fa) * 3, -Math.sin(fa) * 4);
+    fishObj.wag(Math.sin(time * 8) * 0.4); ripple.visible = false; shadow.visible = false;
+    return;
+  }
+  if (mode === 'play') {
+    updatePlayer(dt);
+    if (mode !== 'play') return;
+    updateHerons(dt); updateEnv(dt, time); aimUpdate(dt); updateProgress();
+    if ((LVL.jungle || LVL.museum) ? (P.x > LVL.goalX && !P.air) : (P.inWater && P.x > LVL.goalX)) levelDone();
+    updateCamera(dt); updateHUD();
+  } else if (mode === 'cut') {
+    updateEnv(0, time); updateCut(dt);
+  } else if (mode === 'anim') {
+    animT += dt;
+    if (wonFinal) {
+      P.x += (SPEC[P.type].liz ? 4 : 5) * dt; P.rot += angDiff(P.rot, 0) * 0.1; if (!LVL.noWater) P.y = Math.max(P.y - 0.3 * dt, -1.2);
+      fishObj.root.position.set(P.x, P.y, P.z); fishObj.root.rotation.y = P.rot; fishObj.wag(Math.sin(time * 9) * 0.4);
+      camera.position.x += (P.x - 14 - camera.position.x) * 0.02; camera.position.y += (10 - camera.position.y) * 0.02; camera.lookAt(P.x + 8, 0, P.z);
+      if (Math.random() < dt * 8) emit(P.x + rnd(-3, 3), 0.1, P.z + rnd(-3, 3), rnd(-2, 2), rnd(5, 9), rnd(-2, 2), 1, 0xffffff, 0.15, 14);
+      if (animT > 3.6) afterLevel();
+    } else {
+      P.x += 3 * dt; fishObj.root.position.x = P.x; fishObj.wag(Math.sin(time * 9) * 0.4);
+      updateCamera(dt);
+      if (animT > 1.3) afterLevel();
+    }
+  }
+}
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt);
+  if (renderer) renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- input ---------- */
+const joyEl = $('joy'), knob = joyEl.firstElementChild;
+let joyId = -1; const jb = { x: 0, y: 0 };
+window.addEventListener('pointerdown', e => {
+  if (AC && AC.state === 'suspended') AC.resume();
+  if (e.target.closest('.round,.screen,button')) return;
+  if (mode !== 'play' || joyId !== -1) return;
+  joyId = e.pointerId; jb.x = e.clientX; jb.y = e.clientY;
+  joyEl.style.left = jb.x + 'px'; joyEl.style.top = jb.y + 'px'; knob.style.transform = 'translate(0,0)'; joyEl.classList.add('on');
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId !== joyId) return;
+  let dx = e.clientX - jb.x, dy = e.clientY - jb.y; const l = Math.hypot(dx, dy), R = 50;
+  if (l > R) { dx = dx / l * R; dy = dy / l * R; }
+  knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  const dead = Math.min(l, R) < 6 ? 0 : 1;
+  inp.x = -dy / R * dead; inp.z = dx / R * dead;
+});
+const joyUp = e => { if (e.pointerId === joyId) { joyId = -1; inp.x = inp.z = 0; joyEl.classList.remove('on'); } };
+window.addEventListener('pointerup', joyUp); window.addEventListener('pointercancel', joyUp);
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { if (P && P.type === 'dolphin') aimStart(); else useAbility(); } } keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') aimRelease(); });
+window.addEventListener('contextmenu', e => e.preventDefault());
+$('abil').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (P && P.type === 'dolphin') { aimPid = e.pointerId; aimStart(); } else useAbility(); });
+window.addEventListener('pointerup', e => { if (e.pointerId === aimPid) { aimPid = -1; aimRelease(); } });
+window.addEventListener('pointercancel', e => { if (e.pointerId === aimPid) { aimPid = -1; aim = null; aimGroup.visible = false; } });
+$('playBtn').addEventListener('click', () => showSelect());
+$('goBtn').addEventListener('click', () => { if (sel === 'lfinal') { if (allLizFreed()) startLizFinal(); else toast('Сначала верни в джунгли всех ящериц'); return; } if (sel === 'final') { if (allFreed()) startFinalLevel(); else toast('Сначала освободи в океан всех рыбок'); return; } SAVE.prog[sel] = 0; startLevel(sel, 0); });
+
+/* ---------- boot ---------- */
+buildLevel('gold', 0);
+P = newPlayer('gold'); setFish('gold'); playUI(false);
+showScreen('menu');
+if (!renderer) { $('menu').querySelector('p').textContent = 'Эта игра использует 3D-графику, но браузер её не запустил. Открой страницу в другом браузере.'; $('playBtn').hidden = true; }
+requestAnimationFrame(loop);
+</script>
